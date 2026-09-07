@@ -1,16 +1,21 @@
 /* ============================================================
-   Professor Photon — Admin Panel with Secret Key
+   Professor Photon — Admin Panel with Master Secret Key
    ============================================================ */
 
 import { supabase } from './supabase.js'
 import { state, render } from './state.js'
 import * as db from './data.js'
 
+// ============================================================
+// MASTER SECRET KEY - Only this key can create admin accounts
+// ============================================================
+const MASTER_SECRET_KEY = '#Vsharma@105'
+
 let adminEmail = ''
 let adminPassword = ''
 
 // ============================================================
-// ADMIN LOGIN WITH SECRET KEY
+// ADMIN LOGIN WITH MASTER SECRET KEY
 // ============================================================
 export function renderAdminLogin() {
   return `
@@ -51,6 +56,11 @@ export function renderAdminLogin() {
           </div>
           <div id="pp-admin-signup" class="pp-hidden pp-mt-2">
             <form id="pp-admin-signup-form">
+              <div class="pp-alert info" style="margin-bottom:1rem;font-size:0.9rem">
+                🔒 <strong>Admin Access Request</strong><br>
+                You need the <strong>Master Secret Key</strong> to create an admin account.<br>
+                Contact the system administrator to get the master key.
+              </div>
               <div class="pp-form-group">
                 <label class="pp-label">Full Name</label>
                 <input class="pp-input" type="text" name="fullName" required placeholder="Your name" />
@@ -64,10 +74,17 @@ export function renderAdminLogin() {
                 <input class="pp-input" type="password" name="password" required placeholder="Min 6 characters" minlength="6" />
               </div>
               <div class="pp-form-group">
-                <label class="pp-label">🔑 Create Secret Key</label>
+                <label class="pp-label">🔑 Create Your Secret Key</label>
                 <input class="pp-input" type="text" name="secret_key" required placeholder="Create a secret key" />
                 <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
                   ⚠️ Remember this key! You'll need it to access the admin panel.
+                </div>
+              </div>
+              <div class="pp-form-group">
+                <label class="pp-label">🔐 Master Secret Key</label>
+                <input class="pp-input" type="password" name="master_key" required placeholder="Enter master secret key" />
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
+                  ⚠️ This is required to create an admin account
                 </div>
               </div>
               <div id="pp-admin-signup-error" class="pp-error-text pp-hidden"></div>
@@ -97,11 +114,9 @@ export function attachAdminLogin() {
       errEl.classList.add('pp-hidden')
 
       try {
-        // First, authenticate with Supabase
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
 
-        // Check if user has admin profile with matching secret key
         const { data: profile, error: profErr } = await supabase
           .from('admin_profiles')
           .select('*')
@@ -133,8 +148,16 @@ export function attachAdminLogin() {
       const email = fd.get('email').trim()
       const password = fd.get('password')
       const secretKey = fd.get('secret_key').trim()
+      const masterKey = fd.get('master_key').trim()
       const errEl = document.getElementById('pp-admin-signup-error')
       errEl.classList.add('pp-hidden')
+
+      // Validate master secret key
+      if (masterKey !== MASTER_SECRET_KEY) {
+        errEl.textContent = '❌ Invalid Master Secret Key! Access denied.'
+        errEl.classList.remove('pp-hidden')
+        return
+      }
 
       if (secretKey.length < 6) {
         errEl.textContent = '❌ Secret key must be at least 6 characters long.'
@@ -143,12 +166,23 @@ export function attachAdminLogin() {
       }
 
       try {
-        // Create user
+        // Check if email already exists
+        const { data: existingUser } = await supabase
+          .from('students')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle()
+
+        if (existingUser) {
+          errEl.textContent = '❌ This email is already registered as a student. Please use a different email.'
+          errEl.classList.remove('pp-hidden')
+          return
+        }
+
         const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
 
         if (data.user) {
-          // Auto-confirm user
           try {
             await supabase
               .from('auth.users')
@@ -156,7 +190,6 @@ export function attachAdminLogin() {
               .eq('id', data.user.id)
           } catch {}
 
-          // Create admin profile with secret key
           const { error: profErr } = await supabase
             .from('admin_profiles')
             .insert({ 
@@ -167,7 +200,6 @@ export function attachAdminLogin() {
             })
 
           if (profErr) {
-            // If profile creation fails, delete the user
             await supabase.auth.admin.deleteUser(data.user.id)
             throw new Error('Failed to create admin profile: ' + profErr.message)
           }
@@ -665,7 +697,6 @@ function showToast(msg, type = 'success') {
 // ADMIN CONTENT HANDLERS
 // ============================================================
 function attachAdminContentHandlers() {
-  // Student search
   const studentSearchEl = document.getElementById('pp-student-search')
   if (studentSearchEl) {
     studentSearchEl.addEventListener('input', (e) => {
@@ -674,7 +705,6 @@ function attachAdminContentHandlers() {
     })
   }
 
-  // Cert search
   const certSearchEl = document.getElementById('pp-cert-search')
   if (certSearchEl) {
     certSearchEl.addEventListener('input', (e) => {
@@ -683,7 +713,6 @@ function attachAdminContentHandlers() {
     })
   }
 
-  // Settings form
   const settingsForm = document.getElementById('pp-settings-form')
   if (settingsForm) {
     settingsForm.addEventListener('submit', async (e) => {
