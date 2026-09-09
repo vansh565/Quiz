@@ -149,6 +149,8 @@ function attachStudentHandlers() {
 setRender(async () => {
   await render()
 })
+// src/main.js - Update renderHeader function
+// src/main.js - Update renderHeader function
 
 function renderHeader() {
   const route = getRoute()
@@ -169,10 +171,12 @@ function renderHeader() {
   return `
     <div class="pp-header">
       <div class="pp-header-brand" onclick="window.__ppGoHome()">
-        <div class="pp-header-logo">🧑‍🔬</div>
+        <div class="pp-header-logo">
+          <img src="/logo.png" alt="Professor Prabh" class="pp-header-logo-img" />
+        </div>
         <div>
-          <div class="pp-header-title">Professor Photon</div>
-          <div class="pp-header-subtitle">${isAdmin ? 'Admin Panel' : 'Physics Learning Platform'}</div>
+          <div class="pp-header-title">Professor Prabh</div>
+          <div class="pp-header-subtitle">Learn • Build • Grow</div>
         </div>
       </div>
       <div class="pp-header-nav">
@@ -183,7 +187,6 @@ function renderHeader() {
     </div>
   `
 }
-
 window.__ppGoHome = () => {
   window.location.hash = ''
   state.view = 'landing'
