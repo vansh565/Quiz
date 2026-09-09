@@ -347,30 +347,63 @@ export async function getAllQuestions(quizId = null) {
 // ============================================================
 // QUIZ ATTEMPTS
 // ============================================================
+// ============================================================
+// QUIZ ATTEMPTS
+// ============================================================
 export async function saveQuizAttempt(attempt) {
   try {
+    const cleanAttempt = {
+      student_id: attempt.student_id,
+      quiz_id: attempt.quiz_id,
+      chapter_id: attempt.chapter_id,
+      answers: attempt.answers || {},
+      total_questions: attempt.total_questions || 0,
+      correct_count: attempt.correct_count || 0,
+      wrong_count: attempt.wrong_count || 0,
+      score_percentage: attempt.score_percentage || 0,
+      passed: attempt.passed || false,
+      attempted_at: new Date().toISOString()
+    }
+    
+    console.log('💾 Saving quiz attempt:', cleanAttempt)
+    
     const { data, error } = await supabase
       .from('quiz_attempts')
-      .insert(attempt)
+      .insert([cleanAttempt])
       .select()
       .single()
-    if (error) throw new Error(error.message)
+    
+    if (error) {
+      console.error('❌ Error saving quiz attempt:', error)
+      throw new Error(error.message)
+    }
+    
+    console.log('✅ Quiz attempt saved:', data)
     return data
   } catch (error) {
-    console.error('saveQuizAttempt error:', error)
+    console.error('❌ saveQuizAttempt error:', error)
     throw error
   }
 }
 
-export async function getAttemptsByStudent(studentId, quizId) {
+export async function getAttemptsByStudent(studentId, quizId = null) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('quiz_attempts')
       .select('*')
       .eq('student_id', studentId)
-      .eq('quiz_id', quizId)
       .order('attempted_at', { ascending: false })
-    if (error) throw new Error(error.message)
+    
+    // Only add quiz_id filter if it's provided and not null
+    if (quizId) {
+      query = query.eq('quiz_id', quizId)
+    }
+    
+    const { data, error } = await query
+    if (error) {
+      console.error('Error getting attempts:', error)
+      return []
+    }
     return data || []
   } catch (error) {
     console.error('getAttemptsByStudent error:', error)
@@ -385,14 +418,18 @@ export async function getAllAttempts() {
       .select('*')
       .order('attempted_at', { ascending: false })
       .limit(200)
-    if (error) throw new Error(error.message)
+    
+    if (error) {
+      console.error('❌ Error getting attempts:', error)
+      return []
+    }
+    
     return data || []
   } catch (error) {
-    console.error('getAllAttempts error:', error)
+    console.error('❌ getAllAttempts error:', error)
     return []
   }
 }
-
 // ============================================================
 // CHAPTER PROGRESS
 // ============================================================
@@ -508,23 +545,36 @@ export async function getAllBadges() {
   }
 }
 
+// src/data.js - Update getStudentBadges
+
 export async function getStudentBadges(studentId) {
   try {
     const { data, error } = await supabase
       .from('student_badges')
-      .select('*')
+      .select(`
+        *,
+        badges:badge_id (*),
+        chapters:chapter_id (*)
+      `)
       .eq('student_id', studentId)
-    if (error) throw new Error(error.message)
+    if (error) {
+      console.error('Error getting student badges:', error)
+      return []
+    }
+    console.log('📊 Student badges data:', data)
     return data || []
   } catch (error) {
     console.error('getStudentBadges error:', error)
     return []
   }
 }
+// src/data.js - Update awardBadge function
 
 export async function awardBadge(studentId, chapterId, badgeId) {
   try {
-    // Try RPC first
+    console.log('🏆 Attempting to award badge:', { studentId, chapterId, badgeId })
+    
+    // First try RPC
     const { data, error } = await supabase
       .rpc('award_badge', {
         p_student_id: studentId,
@@ -533,11 +583,12 @@ export async function awardBadge(studentId, chapterId, badgeId) {
       })
     
     if (error) {
-      console.error('RPC awardBadge error:', error)
+      console.warn('RPC awardBadge error, trying fallback:', error)
       // Fallback: direct insert
       return await awardBadgeFallback(studentId, chapterId, badgeId)
     }
     
+    console.log('✅ Badge awarded successfully via RPC')
     return data
   } catch (error) {
     console.error('awardBadge error:', error)
@@ -556,6 +607,7 @@ async function awardBadgeFallback(studentId, chapterId, badgeId) {
       .maybeSingle()
     
     if (existing) {
+      console.log('ℹ️ Badge already awarded')
       return true
     }
     
@@ -574,6 +626,7 @@ async function awardBadgeFallback(studentId, chapterId, badgeId) {
       return false
     }
     
+    console.log('✅ Badge awarded successfully via fallback')
     return true
   } catch (error) {
     console.error('Fallback badge award error:', error)
