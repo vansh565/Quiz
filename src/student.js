@@ -1,5 +1,5 @@
 /* ============================================================
-   Professor Photon — Student Flow
+   Professor Prabh — Student Flow
    ============================================================ */
 
 import { supabase } from './supabase.js'
@@ -24,9 +24,21 @@ export function renderLanding() {
   return `
     <div class="pp-landing">
       <div class="pp-landing-content">
-        <div class="pp-landing-logo">🧑‍🔬</div>
-        <h1>Professor Photon</h1>
-        <p class="pp-landing-tagline">Class 7 Physics Learning Platform</p>
+        <div class="pp-landing-logo">
+          <img src="/logo.png" alt="Professor Prabh" class="pp-logo-image" />
+        </div>
+        <h1>Professor Prabh</h1>
+        <p class="pp-landing-tagline">Learn • Build • Grow</p>
+        <div class="pp-brand-quote">
+          <p>"Seekho WITH PROFESSOR PRABH"</p>
+          <div class="pp-brand-tags">
+            <span>Technology</span>
+            <span>Engineering</span>
+            <span>Career</span>
+            <span>Skills</span>
+            <span>Stay Curious</span>
+          </div>
+        </div>
         <p>Learn physics the fun way! Watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate!</p>
         <div class="pp-features">
           <div class="pp-feature"><div class="pp-feature-icon">🎬</div><div class="pp-feature-text">Video Lessons</div></div>
@@ -53,16 +65,12 @@ function renderOnboardingForm() {
     <div class="pp-card pp-onboarding-card">
       <h2>Enter Your Details</h2>
       <p style="text-align:center;color:var(--text-muted);margin-bottom:1.5rem;font-size:0.9rem">
-        No password needed! Your progress is saved with your email and phone number.
+        No password needed! Your progress is saved with your phone number.
       </p>
       <form id="pp-onboarding-form">
         <div class="pp-form-group">
           <label class="pp-label">Full Name</label>
           <input class="pp-input" type="text" name="name" required placeholder="Enter your name" />
-        </div>
-        <div class="pp-form-group">
-          <label class="pp-label">Email</label>
-          <input class="pp-input" type="email" name="email" required placeholder="you@example.com" />
         </div>
         <div class="pp-form-group">
           <label class="pp-label">Phone Number</label>
@@ -90,9 +98,9 @@ export function attachOnboarding() {
     e.preventDefault()
     const fd = new FormData(form)
     const name = fd.get('name').trim()
-    const email = fd.get('email').trim()
     const phone = fd.get('phone').trim()
     const class_level = fd.get('class_level')
+    const email = `student_${phone}@professorprabh.com`
 
     const btn = form.querySelector('button[type="submit"]')
     btn.disabled = true
@@ -147,7 +155,6 @@ export async function renderDashboard() {
     const allAttempts = await db.getAllAttempts()
     const studentAttempts = allAttempts.filter(a => a.student_id === state.student.id)
     
-    // Create a map of chapter_id -> attempt status
     const attemptMap = {}
     studentAttempts.forEach(a => {
       if (!attemptMap[a.chapter_id]) {
@@ -196,7 +203,6 @@ export async function renderDashboard() {
       const icon = CHAPTER_ICONS[ch.slug] || '📘'
       const iconClass = CHAPTER_ICON_CLASSES[ch.slug] || ''
 
-      // Check attempt status for this chapter
       const attempts = attemptMap[ch.id] || []
       const attemptCount = attempts.length
       const lastAttempt = attempts[attemptCount - 1]
@@ -256,7 +262,6 @@ export async function renderDashboard() {
 // ============================================================
 // VIEW CERTIFICATE
 // ============================================================
-
 window.__ppViewCertificate = function(certId) {
   console.log('📜 Viewing certificate with ID:', certId)
   
@@ -286,9 +291,143 @@ window.__ppViewCertificate = function(certId) {
 }
 
 // ============================================================
-// CERTIFICATE WITH DOWNLOAD - FIXED VERSION
+// BADGE DOWNLOAD FUNCTIONS
 // ============================================================
 
+window.downloadBadge = function(badgeName, studentName) {
+  console.log('📥 Downloading badge:', badgeName, 'for:', studentName)
+  
+  // Create badge element
+  const badgeElement = document.createElement('div')
+  badgeElement.className = 'badge-download-container'
+  badgeElement.style.cssText = `
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 400px;
+    height: 500px;
+    background: linear-gradient(145deg, #1a1a2e, #0f0e17);
+    border-radius: 20px;
+    padding: 2px;
+    background: linear-gradient(135deg, #f5d98e, #fbbf24, #f5d98e, #fbbf24);
+    background-size: 300% 300%;
+    animation: goldenShine 4s ease-in-out infinite;
+    z-index: 9999;
+  `
+  
+  badgeElement.innerHTML = `
+    <div style="
+      background: linear-gradient(145deg, #1a1a2e, #0f0e17);
+      border-radius: 18px;
+      padding: 2rem 1.5rem;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    ">
+      <div style="font-size: 4rem; margin-bottom: 0.5rem;">🏅</div>
+      <div style="
+        font-size: 0.7rem;
+        color: #fbbf24;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        margin-bottom: 0.5rem;
+      ">⭐ Certificate of Achievement</div>
+      <div style="
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #fbbf24;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-bottom: 0.3rem;
+        text-shadow: 0 0 30px rgba(251, 191, 36, 0.2);
+      ">${badgeName}</div>
+      <div style="
+        font-size: 1rem;
+        color: #94a3b8;
+        margin-bottom: 0.5rem;
+      ">Presented to</div>
+      <div style="
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #f5d98e, #fbbf24);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        margin-bottom: 1rem;
+        font-family: 'Georgia', serif;
+      ">${studentName}</div>
+      <div style="
+        font-size: 0.65rem;
+        color: #64748b;
+        margin-bottom: 1rem;
+        border-top: 1px solid rgba(255,215,0,0.1);
+        padding-top: 1rem;
+        width: 60%;
+      ">Earned on ${new Date().toLocaleDateString()}</div>
+      <div style="
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      ">
+        <div style="font-size: 0.6rem; color: #64748b;">Professor Prabh</div>
+        <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #fbbf24, transparent);"></div>
+      </div>
+      <div style="
+        font-size: 0.5rem;
+        color: #4a4a4a;
+        margin-top: 0.5rem;
+        letter-spacing: 1px;
+      ">🏆 Professor Prabh Academy</div>
+    </div>
+  `
+  
+  document.body.appendChild(badgeElement)
+  
+  // Use html2canvas to capture the badge
+  setTimeout(() => {
+    html2canvas(badgeElement, {
+      scale: 3,
+      backgroundColor: null,
+      allowTaint: false,
+      useCORS: true,
+      logging: false,
+      width: 400,
+      height: 500,
+    }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png', 1.0)
+      const { jsPDF } = window.jspdf
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [105, 130] // Small card size
+      })
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+      pdf.save(`${badgeName.replace(/\s+/g, '_')}_Badge.pdf`)
+      
+      document.body.removeChild(badgeElement)
+      
+      showToast('✅ Badge downloaded successfully!', 'success')
+    }).catch(err => {
+      console.error('Badge download error:', err)
+      document.body.removeChild(badgeElement)
+      alert('Error downloading badge. Please try again.')
+    })
+  }, 200)
+}
+
+// ============================================================
+// CERTIFICATE WITH DOWNLOAD
+// ============================================================
 export async function renderCertificate() {
   let cert = state.certificate || window.__certificateData
   
@@ -331,23 +470,15 @@ export async function renderCertificate() {
     year: 'numeric', month: 'long', day: 'numeric'
   })
 
-  const badgeNames = {
-    'heat': 'Heat Master',
-    'motion-time': 'Motion and Time Master',
-    'electric-current': 'Electric Current Master',
-    'light': 'Light Master',
-    'magnetism': 'Magnetism Master'
-  }
-
-  const chapters = [
-    { title: 'Heat', slug: 'heat', icon: '🔥', badgeName: badgeNames['heat'] },
-    { title: 'Motion and Time', slug: 'motion-time', icon: '⚡', badgeName: badgeNames['motion-time'] },
-    { title: 'Electric Current', slug: 'electric-current', icon: '🔌', badgeName: badgeNames['electric-current'] },
-    { title: 'Light', slug: 'light', icon: '💡', badgeName: badgeNames['light'] },
-    { title: 'Magnetism', slug: 'magnetism', icon: '🧲', badgeName: badgeNames['magnetism'] }
+  const badgeData = [
+    { title: 'Heat', slug: 'heat', icon: '🔥', badgeName: 'Heat Master' },
+    { title: 'Motion and Time', slug: 'motion-time', icon: '⚡', badgeName: 'Motion and Time Master' },
+    { title: 'Electric Current', slug: 'electric-current', icon: '🔌', badgeName: 'Electric Current Master' },
+    { title: 'Light', slug: 'light', icon: '💡', badgeName: 'Light Master' },
+    { title: 'Magnetism', slug: 'magnetism', icon: '🧲', badgeName: 'Magnetism Master' }
   ]
 
-  const badgesHTML = chapters.map(ch => {
+  const earnedBadges = badgeData.map(ch => {
     const hasBadge = badges.some(b => {
       const chapterMatch = b.chapter?.slug === ch.slug || b.chapter_id === ch.id
       const badgeName = b.badges?.name || b.name || ''
@@ -356,12 +487,21 @@ export async function renderCertificate() {
       const chapterTitleMatch = b.chapter?.title === ch.title
       return chapterMatch || nameMatch || titleMatch || chapterTitleMatch
     })
-    
+    return { ...ch, earned: hasBadge }
+  })
+
+  const earnedCount = earnedBadges.filter(b => b.earned).length
+
+  const badgesHTML = earnedBadges.map(ch => {
     return `
-      <div class="pp-cert-badge-item ${hasBadge ? 'earned' : 'locked'}">
-        <div class="pp-cert-badge-icon">${hasBadge ? '🏆' : '🔒'}</div>
-        <div class="pp-cert-badge-name">${ch.icon} ${ch.badgeName}</div>
-        <div class="pp-cert-badge-status">${hasBadge ? '✅ Earned' : '⏳ Pending'}</div>
+      <div class="golden-badge ${ch.earned ? 'earned' : 'locked'}">
+        <div class="golden-badge-inner">
+          <div class="golden-badge-icon">${ch.earned ? '🏅' : '🔒'}</div>
+          <div class="golden-badge-name">${ch.badgeName}</div>
+          <div class="golden-badge-student">${student?.name || 'Student'}</div>
+          <div class="golden-badge-status">${ch.earned ? '✅ Earned' : '⏳ Locked'}</div>
+          ${ch.earned ? `<button class="badge-download-btn" onclick="window.downloadBadge('${ch.badgeName}', '${student?.name || 'Student'}')">📥 Download</button>` : ''}
+        </div>
       </div>
     `
   }).join('')
@@ -370,55 +510,51 @@ export async function renderCertificate() {
     <div class="pp-container">
       <button class="pp-back-btn" onclick="window.__ppNav('dashboard')">← Back to Dashboard</button>
       
-      <div class="pp-cert-preview" id="certificate-container">
-        <!-- Header -->
-        <div class="pp-cert-header">
-          <div class="pp-cert-logo">🧑‍🔬</div>
-          <div>
-            <div class="pp-cert-title">Professor Photon</div>
-            <div class="pp-cert-subtitle">Class 7 Physics Learning Platform</div>
+      <div class="certificate-wrapper" id="certificate-container">
+        <div class="certificate-bg"></div>
+        
+        <div class="certificate-content">
+          <div class="cert-header">
+            <div class="cert-logo">🧑‍🔬</div>
+            <div class="cert-title">Professor Prabh</div>
+            <div class="cert-subtitle">Certificate of Excellence</div>
           </div>
-        </div>
 
-        <!-- Body -->
-        <div class="pp-cert-body">
-          <div class="pp-cert-ornament">✦ ✦ ✦</div>
-          
-          <div class="pp-cert-presented">This certificate is proudly presented to</div>
-          <div class="pp-cert-student-name">${student?.name || cert.student_name}</div>
-          
-          <div class="pp-cert-program">
-            for successfully completing the<br>
-            <strong>${cert.program_name}</strong><br>
-            with dedication and excellence
-          </div>
-          
-          <div class="pp-cert-number">Certificate No: ${cert.certificate_number}</div>
-        </div>
+          <div class="cert-body">
+            <div class="cert-presented">This certificate is proudly presented to</div>
+            <div class="cert-student-name">${student?.name || cert.student_name}</div>
+            
+            <div class="cert-program">
+              for successfully completing the<br>
+              <strong>${cert.program_name}</strong>
+            </div>
 
-        <!-- Badges Section -->
-        <div class="pp-cert-badges-section">
-          <h3>🏆 Badges Earned</h3>
-          <div class="pp-cert-badges-grid">
-            ${badgesHTML}
-          </div>
-        </div>
+            <div class="cert-achievement">with outstanding performance and dedication</div>
 
-        <!-- Footer -->
-        <div class="pp-cert-footer">
-          <div class="pp-cert-signature">
-            <div class="pp-cert-signature-line"></div>
-            <div class="pp-cert-signature-name">Dr. Prabhdeep Singh</div>
-            <div class="pp-cert-signature-title">Director, Professor Photon Academy</div>
+            <div class="golden-badges-section">
+              <div class="golden-badges-title">🏆 Badges Earned (${earnedCount}/5)</div>
+              <div class="golden-badges-grid">
+                ${badgesHTML}
+              </div>
+            </div>
+
+            <div class="cert-number">Certificate No: ${cert.certificate_number}</div>
           </div>
-          <div class="pp-cert-date">
-            <div class="pp-cert-date-label">Date of Issue</div>
-            <div class="pp-cert-date-value">${issuedDate}</div>
+
+          <div class="cert-footer">
+            <div class="cert-signature">
+              <div class="cert-signature-line"></div>
+              <div class="cert-signature-name">Professor Prabh</div>
+              <div class="cert-signature-title">Founder, Professor Prabh Academy</div>
+            </div>
+            <div class="cert-date">
+              <div class="cert-date-label">Date of Issue</div>
+              <div class="cert-date-value">${issuedDate}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Action Buttons -->
       <div style="text-align:center;margin-top:1.5rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
         <button class="pp-btn pp-btn-primary" onclick="window.downloadCertificate()">
           📥 Download Certificate (PDF)
@@ -435,9 +571,226 @@ export async function renderCertificate() {
 }
 
 // ============================================================
+// MY ACHIEVEMENTS / HISTORY PAGE
+// ============================================================
+// src/student.js - Update renderAchievements function
+// src/student.js - Updated renderAchievements function
+
+export async function renderAchievements() {
+  const student = state.student
+  if (!student) { navigate('landing'); return '' }
+
+  try {
+    const [progress, studentBadges, attempts, certificates] = await Promise.all([
+      db.getStudentProgress(student.id),
+      db.getStudentBadges(student.id),
+      db.getAttemptsByStudent(student.id, null),
+      db.getAllCertificates()
+    ])
+
+    const studentCerts = certificates.filter(c => c.student_id === student.id)
+    const chapters = await db.getAllChapters()
+    const chapterMap = {}
+    chapters.forEach(ch => { chapterMap[ch.id] = ch.title })
+
+    // Get all badges to map badge_id to name
+    const allBadges = await db.getAllBadges()
+    const badgeMap = {}
+    allBadges.forEach(b => { 
+      badgeMap[b.id] = { name: b.name, chapter_id: b.chapter_id }
+    })
+
+    state.allBadges = studentBadges
+
+    // Log to debug
+    console.log('📊 Student Badges:', studentBadges)
+    console.log('📊 All Badges:', allBadges)
+    console.log('📊 Badge Map:', badgeMap)
+
+    // Badge data with levels
+    const badgeData = [
+      { title: 'Heat', slug: 'heat', icon: '🔥', badgeName: 'Heat Master', level: 'Level 1' },
+      { title: 'Motion and Time', slug: 'motion-time', icon: '⚡', badgeName: 'Motion and Time Master', level: 'Level 2' },
+      { title: 'Electric Current', slug: 'electric-current', icon: '🔌', badgeName: 'Electric Current Master', level: 'Level 1' },
+      { title: 'Light', slug: 'light', icon: '💡', badgeName: 'Light Master', level: 'Level 2' },
+      { title: 'Magnetism', slug: 'magnetism', icon: '🧲', badgeName: 'Magnetism Master', level: 'Level 1' }
+    ]
+
+    // Create golden badges HTML for achievements page
+    let badgesHTML = badgeData.map(ch => {
+      // Check if this badge is earned by matching badge_id
+      const hasBadge = studentBadges.some(sb => {
+        // Get the badge info from the badgeMap using badge_id
+        const badgeInfo = badgeMap[sb.badge_id]
+        if (!badgeInfo) return false
+        
+        // Check if the badge name matches
+        const nameMatch = badgeInfo.name === ch.badgeName
+        // Check if the chapter matches
+        const chapterMatch = badgeInfo.chapter_id === ch.id
+        
+        return nameMatch || chapterMatch
+      })
+      
+      // Find the badge date if earned
+      const badgeDate = studentBadges.find(sb => {
+        const badgeInfo = badgeMap[sb.badge_id]
+        if (!badgeInfo) return false
+        return badgeInfo.name === ch.badgeName || badgeInfo.chapter_id === ch.id
+      })
+
+      const statusText = hasBadge ? 'Earned' : 'Locked'
+      const dateText = hasBadge && badgeDate ? new Date(badgeDate.awarded_at || badgeDate.created_at).toLocaleDateString() : '—'
+      
+      return `
+        <div class="golden-badge ${hasBadge ? 'earned' : 'locked'}">
+          <div class="golden-badge-inner">
+            <div class="golden-badge-icon">${hasBadge ? '🏅' : '🔒'}</div>
+            <div class="golden-badge-title">${ch.badgeName}</div>
+            <div class="golden-badge-student">${student.name}</div>
+            <div class="golden-badge-level">${ch.level} • ${statusText}</div>
+            ${hasBadge ? `<div class="golden-badge-date">${dateText}</div>` : ''}
+            ${hasBadge ? `<button class="badge-download-btn" onclick="window.downloadBadge('${ch.badgeName}', '${student.name}')">📥 Download</button>` : ''}
+          </div>
+        </div>
+      `
+    }).join('')
+
+    // Progress HTML
+    let progressHTML = progress.map(p => {
+      const chapterTitle = chapterMap[p.chapter_id] || 'Unknown Chapter'
+      return `
+        <div class="pp-history-item ${p.completed ? 'completed' : 'pending'}">
+          <div class="pp-history-icon">${p.completed ? '✅' : '⏳'}</div>
+          <div class="pp-history-info">
+            <div class="pp-history-title">${chapterTitle}</div>
+            <div class="pp-history-status">${p.completed ? 'Completed' : 'In Progress'}</div>
+            ${p.completed_at ? `<div class="pp-history-date">${new Date(p.completed_at).toLocaleDateString()}</div>` : ''}
+          </div>
+        </div>
+      `
+    }).join('') || '<div class="pp-empty-state">No progress yet. Start learning!</div>'
+
+    // Quiz Attempts HTML
+    let attemptsHTML = attempts.slice(0, 20).map(a => {
+      const quizTitle = a.quizzes?.title || 'Quiz'
+      const chapterTitle = chapterMap[a.chapter_id] || 'Chapter'
+      const status = a.passed ? '✅ Passed' : '❌ Failed'
+      return `
+        <div class="pp-history-item ${a.passed ? 'passed' : 'failed'}">
+          <div class="pp-history-icon">${a.passed ? '🎉' : '📚'}</div>
+          <div class="pp-history-info">
+            <div class="pp-history-title">${quizTitle}</div>
+            <div class="pp-history-subtitle">${chapterTitle}</div>
+            <div class="pp-history-score">Score: ${a.score_percentage}% (${a.correct_count}/${a.total_questions})</div>
+            <div class="pp-history-status">${status}</div>
+            <div class="pp-history-date">${new Date(a.attempted_at || a.created_at).toLocaleDateString()}</div>
+          </div>
+        </div>
+      `
+    }).join('') || '<div class="pp-empty-state">No quiz attempts yet.</div>'
+
+    // Certificates HTML
+    let certsHTML = ''
+    if (studentCerts.length > 0) {
+      certsHTML = studentCerts.map(cert => `
+        <div class="pp-cert-card">
+          <div class="pp-cert-icon">📜</div>
+          <div class="pp-cert-info">
+            <div class="pp-cert-title">${cert.program_name}</div>
+            <div class="pp-cert-number">Certificate #: ${cert.certificate_number}</div>
+            <div class="pp-cert-date">Issued: ${new Date(cert.issued_date).toLocaleDateString()}</div>
+          </div>
+          <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppViewCertificate('${cert.id}')">
+            View Certificate
+          </button>
+        </div>
+      `).join('')
+    } else {
+      certsHTML = `
+        <div class="pp-empty-state">
+          <p>No certificates yet. Complete all chapters to earn your certificate!</p>
+        </div>
+      `
+    }
+
+    return `
+      <div class="pp-container pp-achievements-page">
+        <div class="pp-achievements-header">
+          <div>
+            <h1>🏆 My Achievements</h1>
+            <p>${student.name} • ${student.class_level}</p>
+          </div>
+          <button class="pp-back-btn" onclick="window.__ppNav('dashboard')">← Back to Dashboard</button>
+        </div>
+
+        <div class="pp-stats-grid">
+          <div class="pp-stat-card">
+            <div class="pp-stat-number">${progress.filter(p => p.completed).length}/${progress.length}</div>
+            <div class="pp-stat-label">Chapters Completed</div>
+          </div>
+          <div class="pp-stat-card">
+            <div class="pp-stat-number">${studentBadges.length}</div>
+            <div class="pp-stat-label">Badges Earned</div>
+          </div>
+          <div class="pp-stat-card">
+            <div class="pp-stat-number">${attempts.length}</div>
+            <div class="pp-stat-label">Quiz Attempts</div>
+          </div>
+          <div class="pp-stat-card">
+            <div class="pp-stat-number">${studentCerts.length}</div>
+            <div class="pp-stat-label">Certificates</div>
+          </div>
+        </div>
+
+        <div class="pp-section">
+          <h2>🏅 My Golden Badges</h2>
+          <div class="golden-badges-grid">
+            ${badgesHTML}
+          </div>
+        </div>
+
+        <div class="pp-section">
+          <h2>📜 My Certificates</h2>
+          <div class="pp-certs-grid">
+            ${certsHTML}
+          </div>
+        </div>
+
+        <div class="pp-section">
+          <h2>📊 Chapter Progress</h2>
+          <div class="pp-history-list">
+            ${progressHTML}
+          </div>
+        </div>
+
+        <div class="pp-section">
+          <h2>📝 Quiz History</h2>
+          <div class="pp-history-list">
+            ${attemptsHTML}
+          </div>
+        </div>
+      </div>
+    `
+  } catch (err) {
+    console.error('renderAchievements error:', err)
+    return `<div class="pp-container"><div class="pp-alert error">Error loading achievements: ${err.message}</div></div>`
+  }
+}
+// ============================================================
+// TOAST NOTIFICATION
+// ============================================================
+function showToast(msg, type = 'success') {
+  const toast = document.createElement('div')
+  toast.className = `pp-toast ${type}`
+  toast.textContent = msg
+  document.body.appendChild(toast)
+  setTimeout(() => toast.remove(), 3000)
+}
+
+// ============================================================
 // DOWNLOAD CERTIFICATE FUNCTION
 // ============================================================
-
 window.downloadCertificate = function() {
   const certElement = document.getElementById('certificate-container')
   if (!certElement) {
@@ -538,170 +891,6 @@ function generatePDF(element, btn, originalText) {
       btn.textContent = originalText || '📥 Download Certificate (PDF)'
       btn.disabled = false
     }
-  }
-}
-
-// ============================================================
-// MY ACHIEVEMENTS / HISTORY PAGE
-// ============================================================
-
-export async function renderAchievements() {
-  const student = state.student
-  if (!student) { navigate('landing'); return '' }
-
-  try {
-    const [progress, studentBadges, attempts, certificates] = await Promise.all([
-      db.getStudentProgress(student.id),
-      db.getStudentBadges(student.id),
-      db.getAttemptsByStudent(student.id, null),
-      db.getAllCertificates()
-    ])
-
-    const studentCerts = certificates.filter(c => c.student_id === student.id)
-    const chapters = await db.getAllChapters()
-    const chapterMap = {}
-    chapters.forEach(ch => { chapterMap[ch.id] = ch.title })
-
-    const allBadges = await db.getAllBadges()
-    const badgeMap = {}
-    allBadges.forEach(b => { badgeMap[b.id] = b.name })
-
-    state.allBadges = studentBadges
-
-    let progressHTML = progress.map(p => {
-      const chapterTitle = chapterMap[p.chapter_id] || 'Unknown Chapter'
-      return `
-        <div class="pp-history-item ${p.completed ? 'completed' : 'pending'}">
-          <div class="pp-history-icon">${p.completed ? '✅' : '⏳'}</div>
-          <div class="pp-history-info">
-            <div class="pp-history-title">${chapterTitle}</div>
-            <div class="pp-history-status">${p.completed ? 'Completed' : 'In Progress'}</div>
-            ${p.completed_at ? `<div class="pp-history-date">${new Date(p.completed_at).toLocaleDateString()}</div>` : ''}
-          </div>
-        </div>
-      `
-    }).join('') || '<div class="pp-empty-state">No progress yet. Start learning!</div>'
-
-    let badgesHTML = ''
-    if (studentBadges.length > 0) {
-      badgesHTML = studentBadges.map(b => {
-        const badgeName = badgeMap[b.badge_id] || b.badges?.name || 'Badge'
-        const chapterTitle = chapterMap[b.chapter_id] || 'Chapter'
-        return `
-          <div class="pp-badge-card">
-            <div class="pp-badge-icon">🏆</div>
-            <div class="pp-badge-name">${badgeName}</div>
-            <div class="pp-badge-chapter">${chapterTitle}</div>
-            <div class="pp-badge-date">${new Date(b.awarded_at || b.created_at).toLocaleDateString()}</div>
-          </div>
-        `
-      }).join('')
-    } else {
-      badgesHTML = '<div class="pp-empty-state">No badges earned yet. Keep learning!</div>'
-    }
-
-    let attemptsHTML = attempts.slice(0, 20).map(a => {
-      const quizTitle = a.quizzes?.title || 'Quiz'
-      const chapterTitle = chapterMap[a.chapter_id] || 'Chapter'
-      const status = a.passed ? '✅ Passed' : '❌ Failed'
-      return `
-        <div class="pp-history-item ${a.passed ? 'passed' : 'failed'}">
-          <div class="pp-history-icon">${a.passed ? '🎉' : '📚'}</div>
-          <div class="pp-history-info">
-            <div class="pp-history-title">${quizTitle}</div>
-            <div class="pp-history-subtitle">${chapterTitle}</div>
-            <div class="pp-history-score">Score: ${a.score_percentage}% (${a.correct_count}/${a.total_questions})</div>
-            <div class="pp-history-status">${status}</div>
-            <div class="pp-history-date">${new Date(a.attempted_at || a.created_at).toLocaleDateString()}</div>
-          </div>
-        </div>
-      `
-    }).join('') || '<div class="pp-empty-state">No quiz attempts yet.</div>'
-
-    let certsHTML = ''
-    if (studentCerts.length > 0) {
-      certsHTML = studentCerts.map(cert => `
-        <div class="pp-cert-card">
-          <div class="pp-cert-icon">📜</div>
-          <div class="pp-cert-info">
-            <div class="pp-cert-title">${cert.program_name}</div>
-            <div class="pp-cert-number">Certificate #: ${cert.certificate_number}</div>
-            <div class="pp-cert-date">Issued: ${new Date(cert.issued_date).toLocaleDateString()}</div>
-          </div>
-          <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppViewCertificate('${cert.id}')">
-            View Certificate
-          </button>
-        </div>
-      `).join('')
-    } else {
-      certsHTML = `
-        <div class="pp-empty-state">
-          <p>No certificates yet. Complete all chapters to earn your certificate!</p>
-        </div>
-      `
-    }
-
-    return `
-      <div class="pp-container pp-achievements-page">
-        <div class="pp-achievements-header">
-          <div>
-            <h1>🏆 My Achievements</h1>
-            <p>${student.name} • ${student.class_level}</p>
-          </div>
-          <button class="pp-back-btn" onclick="window.__ppNav('dashboard')">← Back to Dashboard</button>
-        </div>
-
-        <div class="pp-stats-grid">
-          <div class="pp-stat-card">
-            <div class="pp-stat-number">${progress.filter(p => p.completed).length}/${progress.length}</div>
-            <div class="pp-stat-label">Chapters Completed</div>
-          </div>
-          <div class="pp-stat-card">
-            <div class="pp-stat-number">${studentBadges.length}</div>
-            <div class="pp-stat-label">Badges Earned</div>
-          </div>
-          <div class="pp-stat-card">
-            <div class="pp-stat-number">${attempts.length}</div>
-            <div class="pp-stat-label">Quiz Attempts</div>
-          </div>
-          <div class="pp-stat-card">
-            <div class="pp-stat-number">${studentCerts.length}</div>
-            <div class="pp-stat-label">Certificates</div>
-          </div>
-        </div>
-
-        <div class="pp-section">
-          <h2>📜 My Certificates</h2>
-          <div class="pp-certs-grid">
-            ${certsHTML}
-          </div>
-        </div>
-
-        <div class="pp-section">
-          <h2>🏆 My Badges</h2>
-          <div class="pp-badges-grid">
-            ${badgesHTML}
-          </div>
-        </div>
-
-        <div class="pp-section">
-          <h2>📊 Chapter Progress</h2>
-          <div class="pp-history-list">
-            ${progressHTML}
-          </div>
-        </div>
-
-        <div class="pp-section">
-          <h2>📝 Quiz History</h2>
-          <div class="pp-history-list">
-            ${attemptsHTML}
-          </div>
-        </div>
-      </div>
-    `
-  } catch (err) {
-    console.error('renderAchievements error:', err)
-    return `<div class="pp-container"><div class="pp-alert error">Error loading achievements: ${err.message}</div></div>`
   }
 }
 
@@ -984,42 +1173,48 @@ async function submitQuiz() {
       passed,
     })
 
-    // Update state to reflect attempt
     state.quizResult = attempt
 
     if (passed) {
       await db.markChapterComplete(state.student.id, ch.id)
-      const badges = await db.getBadgesByCourse((await db.getActiveCourses()).find(c => c.class_level === state.student.class_level)?.id)
-      const badge = badges.find(b => b.chapter_id === ch.id)
-      if (badge) {
-        await db.awardBadge(state.student.id, ch.id, badge.id)
-        db.sendBadgeEmail(state.student, badge, ch)
+      
+      const courses = await db.getActiveCourses()
+      const course = courses.find(c => c.class_level === state.student.class_level) || courses[0]
+      
+      if (course) {
+        const badges = await db.getBadgesByCourse(course.id)
+        const badge = badges.find(b => b.chapter_id === ch.id)
+        
+        if (badge) {
+          console.log('🎯 Awarding badge:', badge.name)
+          await db.awardBadge(state.student.id, ch.id, badge.id)
+          
+          const chapters = await db.getChaptersByCourse(course.id)
+          const progress = await db.getStudentProgress(state.student.id)
+          const completedCount = progress.filter(p => p.completed).length
+          const allComplete = completedCount === chapters.length
 
-        const courses = await db.getActiveCourses()
-        const course = courses.find(c => c.class_level === state.student.class_level) || courses[0]
-        const chapters = await db.getChaptersByCourse(course.id)
-        const progress = await db.getStudentProgress(state.student.id)
-        const completedCount = progress.filter(p => p.completed).length
-        const allComplete = completedCount === chapters.length
-
-        let certificate = null
-        if (allComplete) {
-          certificate = await db.getCertificateByStudent(state.student.id, course.id)
-          if (!certificate) {
-            certificate = await db.createCertificate(state.student, course)
-            db.sendCertificateEmail(state.student, certificate)
+          let certificate = null
+          if (allComplete) {
+            certificate = await db.getCertificateByStudent(state.student.id, course.id)
+            if (!certificate) {
+              certificate = await db.createCertificate(state.student, course)
+              db.sendCertificateEmail(state.student, certificate)
+            }
+            state.certificate = certificate
           }
-          state.certificate = certificate
-        }
 
-        navigate('badge', { badge, chapter: ch, result: attempt, certificate })
-        return
+          navigate('badge', { badge, chapter: ch, result: attempt, certificate })
+          return
+        } else {
+          console.warn('⚠️ No badge found for chapter:', ch.id)
+        }
       }
     }
 
-    // Even if failed, navigate to result with attempt data
     navigate('result', { result: attempt, chapter: ch })
   } catch (err) {
+    console.error('❌ Submit quiz error:', err)
     navigate('result', { result: { passed: false, error: err.message }, chapter: ch })
   }
 }
@@ -1041,7 +1236,6 @@ export async function renderResult() {
   const questions = quizQuestions.length > 0 ? quizQuestions : []
   const answers = result.answers || {}
 
-  // Get attempt count for this chapter
   let attemptCount = 1
   try {
     const allAttempts = await db.getAllAttempts()
@@ -1122,8 +1316,13 @@ export function renderBadge() {
         <div class="pp-alert info" style="text-align:center; background: #fef3c7; border-color: #f59e0b;">
           🎉 Badge saved to your account! Check your progress on the dashboard.
         </div>
+        <div style="margin-top:1rem">
+          <button class="pp-btn pp-btn-primary" onclick="window.downloadBadge('${badge.name}', '${state.student?.name || 'Student'}')">
+            📥 Download Badge
+          </button>
+        </div>
         ${cert ? `
-          <div class="pp-alert success" style="text-align:center;font-size:1rem">
+          <div class="pp-alert success" style="text-align:center;font-size:1rem;margin-top:1rem">
             🎉 You've completed ALL 5 chapters! Your certificate is ready!
           </div>
           <button class="pp-btn pp-btn-primary pp-btn-lg" onclick="window.__ppViewCertificate('${cert.id}')">
@@ -1189,7 +1388,7 @@ export function attachVerify() {
             <div class="pp-verify-detail-row"><span class="key">Certificate No.</span><span class="val">${cert.certificate_number}</span></div>
             <div class="pp-verify-detail-row"><span class="key">Issue Date</span><span class="val">${issuedDate}</span></div>
           </div>
-          <p style="color:var(--success-600);font-weight:600;margin-top:1rem">This certificate is authentic and verified by Professor Photon.</p>
+          <p style="color:var(--success-600);font-weight:600;margin-top:1rem">This certificate is authentic and verified by Professor Prabh.</p>
         </div>
       `
     } catch (err) {
