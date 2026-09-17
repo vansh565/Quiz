@@ -1,5 +1,5 @@
 /* ============================================================
-   Professor Photon — Admin Panel with Master Secret Key
+   Professor Prabh — Admin Panel with Master Secret Key
    ============================================================ */
 
 import { supabase } from './supabase.js'
@@ -7,12 +7,9 @@ import { state, render } from './state.js'
 import * as db from './data.js'
 
 // ============================================================
-// MASTER SECRET KEY - Only this key can create admin accounts
+// MASTER SECRET KEY — Only this key can create admin accounts
 // ============================================================
 const MASTER_SECRET_KEY = '#Vsharma@105'
-
-let adminEmail = ''
-let adminPassword = ''
 
 // ============================================================
 // ADMIN LOGIN WITH MASTER SECRET KEY
@@ -23,7 +20,7 @@ export function renderAdminLogin() {
       <div class="pp-landing-content" style="max-width:420px">
         <div class="pp-landing-logo" style="width:80px;height:80px;font-size:2.5rem">🔐</div>
         <h1 style="font-size:1.8rem">Admin Panel</h1>
-        <p class="pp-landing-tagline">Professor Photon Administration</p>
+        <p class="pp-landing-tagline">Professor Prabh Administration</p>
         <div class="pp-card pp-onboarding-card">
           <h2>Secure Access</h2>
           <p style="text-align:center;color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem">
@@ -152,7 +149,6 @@ export function attachAdminLogin() {
       const errEl = document.getElementById('pp-admin-signup-error')
       errEl.classList.add('pp-hidden')
 
-      // Validate master secret key
       if (masterKey !== MASTER_SECRET_KEY) {
         errEl.textContent = '❌ Invalid Master Secret Key! Access denied.'
         errEl.classList.remove('pp-hidden')
@@ -166,14 +162,13 @@ export function attachAdminLogin() {
       }
 
       try {
-        // Check if email already exists
-        const { data: existingUser } = await supabase
+        const { data: existingStudent } = await supabase
           .from('students')
           .select('email')
           .eq('email', email)
           .maybeSingle()
 
-        if (existingUser) {
+        if (existingStudent) {
           errEl.textContent = '❌ This email is already registered as a student. Please use a different email.'
           errEl.classList.remove('pp-hidden')
           return
@@ -183,24 +178,16 @@ export function attachAdminLogin() {
         if (error) throw error
 
         if (data.user) {
-          try {
-            await supabase
-              .from('auth.users')
-              .update({ email_confirmed_at: new Date().toISOString() })
-              .eq('id', data.user.id)
-          } catch {}
-
           const { error: profErr } = await supabase
             .from('admin_profiles')
-            .insert({ 
-              id: data.user.id, 
-              full_name: fullName, 
+            .insert({
+              id: data.user.id,
+              full_name: fullName,
               email: email,
-              secret_key: secretKey
+              secret_key: secretKey,
             })
 
           if (profErr) {
-            await supabase.auth.admin.deleteUser(data.user.id)
             throw new Error('Failed to create admin profile: ' + profErr.message)
           }
 
@@ -303,14 +290,14 @@ async function loadAdminContent() {
 // ============================================================
 async function renderAdminDashboard() {
   const [students, courses, chapters, quizzes, questions, certs, attempts, emails] = await Promise.all([
-    db.getAllStudents(),
-    db.getAllCourses(),
-    db.getAllChapters(),
-    db.getAllQuizzes(),
-    db.getAllQuestions(),
-    db.getAllCertificates(),
-    db.getAllAttempts(),
-    db.getAllEmailLogs(),
+    db.getAllStudents().catch(() => []),
+    db.getAllCourses().catch(() => []),
+    db.getAllChapters().catch(() => []),
+    db.getAllQuizzes().catch(() => []),
+    db.getAllQuestions().catch(() => []),
+    db.getAllCertificates().catch(() => []),
+    db.getAllAttempts().catch(() => []),
+    db.getAllEmailLogs().catch(() => []),
   ])
 
   return `
@@ -333,7 +320,7 @@ async function renderAdminDashboard() {
         <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
         <tbody>
           ${students.slice(0, 5).map(s => `
-            <tr><td>${s.name}</td><td>${s.email}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>
+            <tr><td>${s.name}</td><td>${s.email || '—'}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>
           `).join('') || '<tr><td colspan="4" class="pp-admin-empty">No students yet</td></tr>'}
         </tbody>
       </table>
@@ -350,13 +337,13 @@ async function renderAdminStudents() {
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Students</h1>
-      <input class="pp-search-input" type="text" placeholder="Search by name, email, phone..." value="${studentSearch}" id="pp-student-search" />
+      <input class="pp-search-input" type="text" placeholder="Search by name..." value="${studentSearch}" id="pp-student-search" />
     </div>
     <div class="pp-card">
       <table class="pp-admin-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Class</th><th>Joined</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
         <tbody>
-          ${students.map(s => `<tr><td>${s.name}</td><td>${s.email}</td><td>${s.phone || '—'}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>`).join('') || '<tr><td colspan="5" class="pp-admin-empty">No students found</td></tr>'}
+          ${students.map(s => `<tr><td>${s.name}</td><td>${s.email || '—'}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>`).join('') || '<tr><td colspan="4" class="pp-admin-empty">No students found</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -392,6 +379,7 @@ async function renderAdminCourses() {
           <div class="pp-flex pp-justify-between pp-items-center" style="padding:0.5rem 0;border-bottom:1px solid var(--border)">
             <div>${ch.sort_order || 0}. ${ch.title} 
               <span class="pp-badge-chip ${ch.is_active ? 'active' : 'inactive'}">${ch.is_active ? 'Active' : 'Inactive'}</span>
+              ${ch.youtube_url ? '<span class="pp-badge-chip active" style="margin-left:0.25rem">🎬 Video</span>' : ''}
             </div>
             <div class="pp-flex pp-gap-1">
               <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppEditChapter('${ch.id}')">Edit</button>
@@ -609,10 +597,50 @@ async function renderAdminCertificates() {
 }
 
 // ============================================================
-// ADMIN EMAIL LOGS
+// ADMIN EMAIL LOGS  ✅ FIXED
 // ============================================================
 async function renderAdminEmails() {
-  const logs = await db.getAllEmailLogs()
+  let logs = []
+  let fetchError = null
+
+  try {
+    logs = await db.getAllEmailLogs()
+    if (!Array.isArray(logs)) logs = []
+  } catch (err) {
+    console.error('Email logs fetch error:', err)
+    fetchError = err.message || String(err)
+    logs = []
+  }
+
+  if (fetchError) {
+    return `
+      <h1 class="pp-admin-page-title">Email Logs</h1>
+      <div class="pp-card" style="text-align:center;padding:2rem">
+        <div style="font-size:3rem;margin-bottom:0.5rem">⚠️</div>
+        <h3 style="margin:0 0 0.5rem">Could not load email logs</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin:0.5rem 0">
+          ${fetchError}
+        </p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:1rem">
+          Make sure the <code>email_logs</code> table exists in your database.
+        </p>
+      </div>
+    `
+  }
+
+  if (logs.length === 0) {
+    return `
+      <h1 class="pp-admin-page-title">Email Logs</h1>
+      <div class="pp-card" style="text-align:center;padding:2rem">
+        <div style="font-size:3rem;margin-bottom:0.5rem">📭</div>
+        <h3 style="margin:0 0 0.5rem">No emails sent yet</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin:0">
+          When you send certificate or badge emails to students, they will appear here.
+        </p>
+      </div>
+    `
+  }
+
   return `
     <h1 class="pp-admin-page-title">Email Logs</h1>
     <div class="pp-card">
@@ -621,13 +649,13 @@ async function renderAdminEmails() {
         <tbody>
           ${logs.map(l => `
             <tr>
-              <td><span class="pp-badge-chip ${l.email_type === 'badge' ? 'active' : 'inactive'}">${l.email_type}</span></td>
-              <td>${l.recipient_email}</td>
+              <td><span class="pp-badge-chip ${l.email_type === 'badge' ? 'active' : 'inactive'}">${l.email_type || '—'}</span></td>
+              <td>${l.recipient_email || '—'}</td>
               <td>${l.subject || '—'}</td>
-              <td><span class="pp-badge-chip ${l.status === 'sent' ? 'active' : 'inactive'}">${l.status}</span></td>
-              <td>${new Date(l.sent_at).toLocaleDateString()}</td>
+              <td><span class="pp-badge-chip ${l.status === 'sent' ? 'active' : 'inactive'}">${l.status || '—'}</span></td>
+              <td>${l.sent_at ? new Date(l.sent_at).toLocaleDateString() : '—'}</td>
             </tr>
-          `).join('') || '<tr><td colspan="5" class="pp-admin-empty">No emails sent yet</td></tr>'}
+          `).join('')}
         </tbody>
       </table>
     </div>
@@ -645,7 +673,7 @@ async function renderAdminSettings() {
       <form id="pp-settings-form">
         <div class="pp-form-group">
           <label class="pp-label">Platform Name</label>
-          <input class="pp-input" type="text" name="platform_name" value="${settings.platform_name || 'Professor Photon'}" />
+          <input class="pp-input" type="text" name="platform_name" value="${settings.platform_name || 'Professor Prabh'}" />
         </div>
         <div class="pp-form-group">
           <label class="pp-label">Default Passing Percentage</label>
@@ -691,6 +719,131 @@ function showToast(msg, type = 'success') {
   toast.textContent = msg
   document.body.appendChild(toast)
   setTimeout(() => toast.remove(), 3000)
+}
+
+// Extract YouTube ID from any URL
+function extractYoutubeId(url) {
+  if (!url) return ''
+  url = String(url).trim()
+  if (/^[\w-]{11}$/.test(url)) return url
+  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]{11})/)
+  return m ? m[1] : ''
+}
+
+// ============================================================
+// 🔥 BULK QUESTION PARSER
+//   Accepts pasted text like:
+//     Q: What is X?
+//     A) option 1
+//     B) option 2
+//     C) option 3
+//     D) option 4
+//     Answer: B
+//
+//   Also supports:
+//     "1." / "Q1." / "Question 1:" prefixes
+//     "A." / "A)" / "(A)" options
+//     "Ans:" / "Answer:" / "Correct:" answers
+// ============================================================
+function parseBulkQuestions(text) {
+  const questions = []
+  const errors = []
+
+  // Normalize line endings
+  const raw = String(text || '').replace(/\r\n/g, '\n').trim()
+  if (!raw) return { questions, errors: ['Empty input'] }
+
+  // Split into blocks by blank lines OR by "Q:" / "Q1:" markers
+  // Strategy: first split by blank lines; if any block has all parts, good.
+  let blocks = raw.split(/\n\s*\n+/)
+
+  // If only one big block, split by question starters instead
+  if (blocks.length === 1) {
+    blocks = raw.split(/(?=^\s*(?:Q\s*\d*\s*[\.\):]|Question\s*\d*\s*[\.\):]|\d+\s*[\.\):])\s*)/mi)
+  }
+
+  blocks.forEach((block, idx) => {
+    const b = block.trim()
+    if (!b) return
+
+    const lines = b.split('\n').map(l => l.trim()).filter(Boolean)
+    if (lines.length < 3) return
+
+    let questionText = ''
+    const options = { a: '', b: '', c: '', d: '' }
+    let correctLetter = ''
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+
+      // Answer line
+      let ansMatch = line.match(/^(?:Ans(?:wer)?|Correct(?:\s*Answer)?|Sol(?:ution)?)\s*[:\-]\s*([A-Da-d])/i)
+      if (ansMatch) {
+        correctLetter = ansMatch[1].toLowerCase()
+        continue
+      }
+      // Or Answer: B) text
+      ansMatch = line.match(/^(?:Ans(?:wer)?|Correct)\s*[:\-]\s*([A-Da-d])\s*[\).:]?/i)
+      if (ansMatch) {
+        correctLetter = ansMatch[1].toLowerCase()
+        continue
+      }
+
+      // Option line: A) text / A. text / (A) text / A - text
+      const optMatch = line.match(/^\(?\s*([A-Da-d])\s*[\).\]:\-]\s*(.+)$/)
+      if (optMatch) {
+        const letter = optMatch[1].toLowerCase()
+        const text = optMatch[2].trim()
+        // Must not look like "Answer"
+        if (/^[A-Da-d]$/.test(letter) && text.length > 0) {
+          options[letter] = text
+          continue
+        }
+      }
+
+      // Otherwise, treat as question text (first non-option, non-answer line)
+      if (!questionText) {
+        // Strip leading "Q:", "Q1.", "1.", "Question 1:" etc.
+        questionText = line
+          .replace(/^\s*(?:Q\s*\d*\s*[\.\):]|Question\s*\d*\s*[\.\):]|\d+\s*[\.\):])\s*/i, '')
+          .trim()
+      } else if (!options.a && !options.b && !options.c && !options.d) {
+        // Extra question-line continuation
+        questionText += ' ' + line
+      }
+    }
+
+    // Validate
+    const missing = []
+    if (!questionText) missing.push('question text')
+    if (!options.a) missing.push('option A')
+    if (!options.b) missing.push('option B')
+    if (!options.c) missing.push('option C')
+    if (!options.d) missing.push('option D')
+    if (!correctLetter) missing.push('correct answer')
+    if (correctLetter && !options[correctLetter]) {
+      missing.push(`answer letter "${correctLetter}" but no such option`)
+    }
+
+    if (missing.length > 0) {
+      errors.push(`Block ${idx + 1}: missing ${missing.join(', ')}`)
+      return
+    }
+
+    questions.push({
+      question_text: questionText,
+      option_a: options.a,
+      option_b: options.b,
+      option_c: options.c,
+      option_d: options.d,
+      correct_answer: correctLetter,
+      explanation: '',
+      sort_order: questions.length + 1,
+      is_active: true,
+    })
+  })
+
+  return { questions, errors }
 }
 
 // ============================================================
@@ -811,7 +964,7 @@ function attachAdminContentHandlers() {
   }
 
   // ============================================================
-  // CHAPTER CRUD
+  // CHAPTER CRUD — with YouTube URL
   // ============================================================
   window.__ppAddChapter = async (courseId) => {
     const chapters = await db.getAllChapters()
@@ -821,6 +974,13 @@ function attachAdminContentHandlers() {
         <div class="pp-form-group"><label>Title</label><input class="pp-input" type="text" name="title" required placeholder="Chapter title" /></div>
         <div class="pp-form-group"><label>Slug</label><input class="pp-input" type="text" name="slug" required placeholder="chapter-slug" /></div>
         <div class="pp-form-group"><label>Description</label><textarea class="pp-textarea" name="description"></textarea></div>
+        <div class="pp-form-group">
+          <label>🎬 YouTube URL (optional)</label>
+          <input class="pp-input" type="text" name="youtube_url" placeholder="https://www.youtube.com/watch?v=..." />
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
+            This video will show on the secret code page for this chapter.
+          </div>
+        </div>
         <div class="pp-form-group"><label>Sort Order</label><input class="pp-input" type="number" name="sort_order" value="${courseChapters.length + 1}" required /></div>
         <div class="pp-form-group"><label><input type="checkbox" name="is_active" checked /> Active</label></div>
         <div class="pp-modal-footer"><button type="submit" class="pp-btn pp-btn-primary">Create Chapter</button></div>
@@ -851,6 +1011,10 @@ function attachAdminContentHandlers() {
         <div class="pp-form-group"><label>Title</label><input class="pp-input" type="text" name="title" value="${ch.title}" required /></div>
         <div class="pp-form-group"><label>Slug</label><input class="pp-input" type="text" name="slug" value="${ch.slug}" required /></div>
         <div class="pp-form-group"><label>Description</label><textarea class="pp-textarea" name="description">${ch.description || ''}</textarea></div>
+        <div class="pp-form-group">
+          <label>🎬 YouTube URL</label>
+          <input class="pp-input" type="text" name="youtube_url" value="${ch.youtube_url || ''}" placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
         <div class="pp-form-group"><label>Sort Order</label><input class="pp-input" type="number" name="sort_order" value="${ch.sort_order || 0}" required /></div>
         <div class="pp-form-group"><label><input type="checkbox" name="is_active" ${ch.is_active ? 'checked' : ''} /> Active</label></div>
         <div class="pp-modal-footer"><button type="submit" class="pp-btn pp-btn-primary">Save</button></div>
@@ -911,8 +1075,7 @@ function attachAdminContentHandlers() {
       fd.forEach((v, k) => { row[k] = v })
       row.is_active = row.is_active === 'on'
       row.sort_order = parseInt(row.sort_order) || 1
-      const match = row.youtube_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/)
-      row.youtube_id = match ? match[1] : ''
+      row.youtube_id = extractYoutubeId(row.youtube_url)
       try {
         await db.adminInsert('videos', row)
         document.getElementById('pp-modal-overlay').remove()
@@ -943,8 +1106,7 @@ function attachAdminContentHandlers() {
       fd.forEach((v, k) => { updates[k] = v })
       updates.is_active = updates.is_active === 'on'
       updates.sort_order = parseInt(updates.sort_order) || 1
-      const match = updates.youtube_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/)
-      updates.youtube_id = match ? match[1] : ''
+      updates.youtube_id = extractYoutubeId(updates.youtube_url)
       try {
         await db.adminUpdate('videos', id, updates)
         document.getElementById('pp-modal-overlay').remove()
@@ -1088,18 +1250,22 @@ function attachAdminContentHandlers() {
   }
 
   // ============================================================
-  // QUESTION CRUD
+  // QUESTION CRUD — with BULK IMPORT
   // ============================================================
   window.__ppManageQuestions = async (quizId) => {
     const [questions, quizzes] = await Promise.all([db.getAllQuestions(quizId), db.getAllQuizzes()])
     const qz = quizzes.find(x => x.id === quizId)
     showModal(`Questions: ${qz?.title || ''}`, `
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
+        <button class="pp-btn pp-btn-primary" style="flex:1" onclick="window.__ppAddQuestion('${quizId}')">+ Add Single Question</button>
+        <button class="pp-btn pp-btn-secondary" style="flex:1" onclick="window.__ppBulkImport('${quizId}')">📋 Bulk Import (Paste)</button>
+      </div>
       <div id="pp-questions-list">
         ${questions.map((q, i) => `
           <div class="pp-card pp-mb-2" style="padding:1rem">
             <div class="pp-flex pp-justify-between">
               <strong>${i + 1}. ${q.question_text}</strong>
-              <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteQuestion('${q.id}')">Delete</button>
+              <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteQuestion('${q.id}', '${quizId}')">Delete</button>
             </div>
             <div style="font-size:0.85rem;color:var(--text-muted);margin-top:0.3rem">
               A: ${q.option_a} | B: ${q.option_b} | C: ${q.option_c} | D: ${q.option_d}<br>
@@ -1109,12 +1275,11 @@ function attachAdminContentHandlers() {
           </div>
         `).join('') || '<div class="pp-admin-empty">No questions yet</div>'}
       </div>
-      <button class="pp-btn pp-btn-primary pp-btn-block" onclick="window.__ppAddQuestion('${quizId}')">+ Add Question</button>
     `)
   }
 
   window.__ppAddQuestion = async (quizId) => {
-    document.getElementById('pp-modal-overlay').remove()
+    document.getElementById('pp-modal-overlay')?.remove()
     showModal('Add Question', `
       <form id="pp-modal-form">
         <input type="hidden" name="quiz_id" value="${quizId}" />
@@ -1144,19 +1309,146 @@ function attachAdminContentHandlers() {
       row.sort_order = parseInt(row.sort_order) || 1
       try {
         await db.adminInsert('questions', row)
-        document.getElementById('pp-modal-overlay').remove()
+        document.getElementById('pp-modal-overlay')?.remove()
         showToast('Question added!', 'success')
         window.__ppManageQuestions(quizId)
       } catch (err) { showToast('Error: ' + err.message, 'error') }
     })
   }
 
-  window.__ppDeleteQuestion = async (id) => {
+  // ------------------------------------------------------------
+  // 📋 BULK IMPORT MODAL
+  // ------------------------------------------------------------
+  window.__ppBulkImport = (quizId) => {
+    document.getElementById('pp-modal-overlay')?.remove()
+    showModal('Bulk Import Questions', `
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem">
+        Paste all your questions below. The parser will automatically detect questions, options, and answers.
+      </div>
+      <div class="pp-alert info" style="font-size:0.8rem;margin-bottom:1rem">
+        <strong>Format example:</strong><br>
+        <pre style="margin:0.5rem 0;white-space:pre-wrap;font-size:0.75rem">Q: What is the SI unit of force?
+A) Joule
+B) Newton
+C) Watt
+D) Pascal
+Answer: B
+
+Q: Which instrument measures temperature?
+A) Barometer
+B) Thermometer
+C) Hygrometer
+D) Ammeter
+Answer: B</pre>
+        Also works with <code>1.</code>, <code>Q1:</code>, <code>A.</code>, <code>Ans:</code>, etc.
+      </div>
+      <form id="pp-bulk-form">
+        <div class="pp-form-group">
+          <label>Paste questions here</label>
+          <textarea class="pp-textarea" name="bulk_text" id="pp-bulk-text" required
+            style="min-height:280px;font-family:monospace;font-size:0.85rem"
+            placeholder="Paste your questions here..."></textarea>
+        </div>
+        <div id="pp-bulk-preview" style="margin:0.5rem 0"></div>
+        <div class="pp-modal-footer" style="display:flex;gap:0.5rem;justify-content:space-between">
+          <button type="button" class="pp-btn pp-btn-secondary" onclick="window.__ppPreviewBulk()">🔍 Preview</button>
+          <button type="submit" class="pp-btn pp-btn-primary">✅ Import All</button>
+        </div>
+      </form>
+    `)
+
+    document.getElementById('pp-bulk-form').addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const text = document.getElementById('pp-bulk-text').value
+      const { questions, errors } = parseBulkQuestions(text)
+
+      if (questions.length === 0) {
+        document.getElementById('pp-bulk-preview').innerHTML = `
+          <div class="pp-alert error" style="font-size:0.85rem">
+            ❌ No valid questions found.<br>
+            ${errors.length ? errors.join('<br>') : 'Check the format and try again.'}
+          </div>
+        `
+        return
+      }
+
+      const previewEl = document.getElementById('pp-bulk-preview')
+      previewEl.innerHTML = `<div class="pp-alert info" style="font-size:0.85rem">⏳ Importing ${questions.length} questions...</div>`
+
+      let success = 0
+      let failed = 0
+      const failedMsgs = []
+
+      for (const q of questions) {
+        try {
+          await db.adminInsert('questions', { ...q, quiz_id: quizId })
+          success++
+        } catch (err) {
+          failed++
+          failedMsgs.push(`${q.question_text.slice(0, 40)}... → ${err.message}`)
+        }
+      }
+
+      previewEl.innerHTML = `
+        <div class="pp-alert ${failed === 0 ? 'success' : 'info'}" style="font-size:0.85rem">
+          ✅ Imported ${success} / ${questions.length} questions.${failed ? `<br>❌ Failed: ${failed}<br>${failedMsgs.join('<br>')}` : ''}
+        </div>
+      `
+
+      if (success > 0) {
+        setTimeout(() => {
+          document.getElementById('pp-modal-overlay')?.remove()
+          showToast(`✅ Imported ${success} questions!`, 'success')
+          window.__ppManageQuestions(quizId)
+        }, 1200)
+      }
+    })
+  }
+
+  window.__ppPreviewBulk = () => {
+    const text = document.getElementById('pp-bulk-text').value
+    const { questions, errors } = parseBulkQuestions(text)
+    const previewEl = document.getElementById('pp-bulk-preview')
+
+    if (questions.length === 0) {
+      previewEl.innerHTML = `
+        <div class="pp-alert error" style="font-size:0.85rem">
+          ❌ No valid questions found.<br>
+          ${errors.length ? errors.join('<br>') : 'Check the format and try again.'}
+        </div>
+      `
+      return
+    }
+
+    previewEl.innerHTML = `
+      <div class="pp-alert success" style="font-size:0.85rem">
+        ✅ Found <strong>${questions.length}</strong> valid questions.
+        ${errors.length ? `<br>⚠️ ${errors.length} skipped: ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? '...' : ''}` : ''}
+      </div>
+      <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0.5rem;background:#f9fafb">
+        ${questions.map((q, i) => `
+          <div style="padding:0.5rem 0;border-bottom:1px solid #e5e7eb;font-size:0.8rem">
+            <strong>${i + 1}. ${q.question_text}</strong><br>
+            A: ${q.option_a}<br>
+            B: ${q.option_b}<br>
+            C: ${q.option_c}<br>
+            D: ${q.option_d}<br>
+            <span style="color:#16a34a">✔ Correct: ${q.correct_answer.toUpperCase()}</span>
+          </div>
+        `).join('')}
+      </div>
+    `
+  }
+
+  window.__ppDeleteQuestion = async (id, quizId) => {
     if (!confirm('Delete this question?')) return
     try {
       await db.adminDelete('questions', id)
-      document.getElementById('pp-modal-overlay').remove()
       showToast('Question deleted!', 'success')
+      if (quizId) {
+        document.getElementById('pp-modal-overlay')?.remove()
+        window.__ppManageQuestions(quizId)
+      }
     } catch (err) { showToast('Error: ' + err.message, 'error') }
   }
 
