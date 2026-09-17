@@ -17,8 +17,14 @@ const CHAPTER_ICON_CLASSES = {
   'light': 'light', 'magnetism': 'magnetism',
 }
 
+// How many questions to show in the FINAL combined quiz
+const FINAL_QUIZ_QUESTION_COUNT = 20
+
+// Passing percentage for final quiz
+const FINAL_QUIZ_PASS_PCT = 70
+
 // ============================================================
-// IN-MEMORY SESSION (no DB persistence for student progress)
+// IN-MEMORY SESSION
 // ============================================================
 const session = {
   student: null,
@@ -28,63 +34,100 @@ const session = {
   badges: [],
   attempts: [],
   certificate: null,
+  finalQuizPassed: false,   // NEW: tracks if final quiz was passed
+  finalQuizResult: null,    // NEW: stores final quiz result
 }
 
 // ============================================================
-// LANDING / ONBOARDING (no phone)
+// LANDING / ONBOARDING
 // ============================================================
 export function renderLanding() {
   return `
-    <div class="pp-landing">
-      <div class="pp-landing-content">
-        <div class="pp-landing-logo">
-          <img src="/logo.png" alt="Professor Prabh" class="pp-logo-image" />
-        </div>
-        <h1>Professor Prabh</h1>
-        <p class="pp-landing-tagline">Learn • Build • Grow</p>
-        <div class="pp-brand-quote">
-          <p>"Seekho WITH PROFESSOR PRABH"</p>
-          <div class="pp-brand-tags">
-            <span>Technology</span>
-            <span>Engineering</span>
-            <span>Career</span>
-            <span>Skills</span>
-            <span>Stay Curious</span>
+    <div class="pp-landing pp-landing-split">
+      <div class="pp-landing-grid">
+
+        <!-- LEFT SIDE — Hero -->
+        <div class="pp-landing-left">
+          <div class="pp-hero-content">
+            <div class="pp-landing-logo">
+              <img src="/logo.png" alt="Professor Prabh" class="pp-logo-image" />
+            </div>
+
+            <h1>Professor Prabh</h1>
+            <p class="pp-landing-tagline">Learn • Build • Grow</p>
+
+            <div class="pp-brand-quote">
+              <p>"Seekho WITH PROFESSOR PRABH"</p>
+              <div class="pp-brand-tags">
+                <span>Technology</span>
+                <span>Engineering</span>
+                <span>Career</span>
+                <span>Skills</span>
+                <span>Stay Curious</span>
+              </div>
+            </div>
+
+            <p class="pp-landing-desc">
+              Learn physics the fun way — watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate.
+            </p>
+
+            <div class="pp-features">
+              <div class="pp-feature">
+                <div class="pp-feature-icon">🎬</div>
+                <div>
+                  <div class="pp-feature-text">Video Lessons</div>
+                  <div class="pp-feature-sub">Watch & learn</div>
+                </div>
+              </div>
+         
+              <div class="pp-feature">
+                <div class="pp-feature-icon">🏆</div>
+                <div>
+                  <div class="pp-feature-text">Earn Badges</div>
+                  <div class="pp-feature-sub">Track progress</div>
+                </div>
+              </div>
+              <div class="pp-feature">
+                <div class="pp-feature-icon">📜</div>
+                <div>
+                  <div class="pp-feature-text">Certificate</div>
+                  <div class="pp-feature-sub">Show off your skills</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pp-landing-actions">
+              <button class="pp-btn pp-btn-ghost" onclick="window.location.hash='#verify'">
+                🔍 Verify Certificate
+              </button>
+            </div>
           </div>
         </div>
-        <p>Learn physics the fun way! Watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate!</p>
-        <div class="pp-features">
-          <div class="pp-feature"><div class="pp-feature-icon">🎬</div><div class="pp-feature-text">Video Lessons</div></div>
-       
-          <div class="pp-feature"><div class="pp-feature-icon">🏆</div><div class="pp-feature-text">Earn Badges</div></div>
-          <div class="pp-feature"><div class="pp-feature-icon">📜</div><div class="pp-feature-text">Certificate</div></div>
-        </div>
-        <button class="pp-btn pp-btn-primary pp-btn-lg pp-btn-block" onclick="document.getElementById('pp-onboarding-section').scrollIntoView({behavior:'smooth'})">
-          Start Learning
-        </button>
-        <div style="margin-top:1.5rem">
-          <button class="pp-btn pp-btn-ghost" onclick="window.location.hash='#verify'">Verify Certificate</button>
-        </div>
-        <div id="pp-onboarding-section" style="margin-top:2.5rem">
+
+        <!-- RIGHT SIDE — Onboarding -->
+        <div class="pp-landing-right">
           ${renderOnboardingForm()}
         </div>
+
       </div>
     </div>
   `
 }
-
 function renderOnboardingForm() {
   return `
-    <div class="pp-card pp-onboarding-card">
-      <h2>Enter Your Details</h2>
-      <p style="text-align:center;color:var(--text-muted);margin-bottom:1.5rem;font-size:0.9rem">
-        No password needed! Just enter your name and class to start.
-      </p>
+    <div class="pp-onboarding-right">
+      <div class="pp-onboarding-header">
+        <div class="pp-onboarding-icon">🎓</div>
+        <h2>Enter Your Details</h2>
+        <p class="pp-onboarding-sub">No password needed — start in seconds</p>
+      </div>
+
       <form id="pp-onboarding-form">
         <div class="pp-form-group">
           <label class="pp-label">Full Name</label>
-          <input class="pp-input" type="text" name="name" required placeholder="Enter your name" />
+          <input class="pp-input" type="text" name="name" required placeholder="e.g. Aarav Sharma" />
         </div>
+
         <div class="pp-form-group">
           <label class="pp-label">Class</label>
           <select class="pp-select" name="class_level" required>
@@ -93,13 +136,21 @@ function renderOnboardingForm() {
             <option value="Class 8">Class 8</option>
           </select>
         </div>
+
         <div id="pp-onboarding-error" class="pp-error-text pp-hidden"></div>
-        <button type="submit" class="pp-btn pp-btn-primary pp-btn-block pp-btn-lg">Start Learning</button>
+
+        <button type="submit" class="pp-btn pp-btn-primary pp-btn-block pp-btn-lg">
+          🚀 Start Learning
+        </button>
       </form>
+
+      <div class="pp-onboarding-foot">
+        <span>🔒</span>
+        <span>Your progress is saved only for this session</span>
+      </div>
     </div>
   `
 }
-
 export function attachOnboarding() {
   const form = document.getElementById('pp-onboarding-form')
   if (!form) return
@@ -121,6 +172,8 @@ export function attachOnboarding() {
       session.badges = []
       session.attempts = []
       session.certificate = null
+      session.finalQuizPassed = false
+      session.finalQuizResult = null
 
       const courses = await db.getActiveCourses()
       const course = courses.find(c => c.class_level === class_level) || courses[0]
@@ -132,12 +185,10 @@ export function attachOnboarding() {
 
       console.log('📚 Loaded chapters:', session.chapters)
 
-      // Preload videos from the videos table
       try {
         for (const ch of session.chapters) {
           const videos = await db.getVideosByChapter(ch.id)
           ch._videos = videos || []
-          console.log(`🎬 Chapter "${ch.title}" — youtube_url: ${ch.youtube_url} — videos: ${videos?.length || 0}`)
         }
       } catch (e) {
         console.warn('Could not preload videos:', e)
@@ -190,35 +241,50 @@ export async function renderChapters() {
     `
   }).join('')
 
-  let certSection = ''
+  // ============================================================
+  // FINAL QUIZ SECTION — appears only after all chapters complete
+  // ============================================================
+  let finalSection = ''
   if (allComplete) {
-    if (!session.certificate) {
-      session.certificate = {
-        id: 'session-cert-' + Date.now(),
-        certificate_number: generateCertNumber(),
-        student_name: session.student.name,
-        class_level: session.student.class_level,
-        program_name: session.course?.name || 'Class 7 Physics',
-        issued_date: new Date().toISOString(),
-      }
-      try {
-        if (typeof db.saveCertificate === 'function') {
-          await db.saveCertificate(session.certificate)
-        }
-      } catch (e) {
-        console.warn('Certificate DB save skipped:', e)
-      }
+    if (session.finalQuizPassed && session.certificate) {
+      // Already passed → show certificate
+      finalSection = `
+        <div class="pp-card pp-card-glow" style="text-align:center;margin-bottom:2rem;border:2px solid var(--warning-500)">
+          <div style="font-size:3rem;margin-bottom:0.5rem">🏆</div>
+          <h2 style="color:var(--warning-600)">Congratulations! You passed the Final Quiz!</h2>
+          <p style="color:var(--text-muted);margin:0.5rem 0 1rem">Your certificate is ready</p>
+          <button class="pp-btn pp-btn-primary" onclick="window.__ppViewCertificate('${session.certificate.id}')">
+            View Your Certificate
+          </button>
+        </div>
+      `
+    } else {
+      // All chapters done, but final quiz not passed yet
+      finalSection = `
+        <div class="pp-card pp-card-glow" style="text-align:center;margin-bottom:2rem;border:2px solid #6366f1;background:linear-gradient(135deg,#eef2ff,#faf5ff)">
+          <div style="font-size:3rem;margin-bottom:0.5rem">🎓</div>
+          <h2 style="color:#4f46e5">Ready for the Final Quiz?</h2>
+          <p style="color:var(--text-muted);margin:0.5rem 0 1rem">
+            You've completed all <strong>${chapters.length} chapters</strong>!<br>
+            Now take the <strong>Final Combined Quiz</strong> to unlock your certificate.
+          </p>
+          <div style="background:#fff;border-radius:12px;padding:1rem;margin:1rem 0;text-align:left;font-size:0.9rem">
+            <div style="margin:0.3rem 0">📝 <strong>${FINAL_QUIZ_QUESTION_COUNT} questions</strong> from all chapters</div>
+            <div style="margin:0.3rem 0">🔀 Questions <strong>shuffled</strong> randomly</div>
+            <div style="margin:0.3rem 0">🎯 Need <strong>${FINAL_QUIZ_PASS_PCT}%</strong> or higher to pass</div>
+            <div style="margin:0.3rem 0">📜 Pass → Certificate unlocked</div>
+          </div>
+          <button class="pp-btn pp-btn-primary pp-btn-lg" onclick="window.__ppStartFinalQuiz()">
+            🚀 Start Final Quiz
+          </button>
+          ${session.finalQuizResult && !session.finalQuizResult.passed ? `
+            <div style="margin-top:1rem;padding:0.75rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:0.85rem;color:#991b1b">
+              ❌ You scored ${session.finalQuizResult.score_percentage}% last time. Need ${FINAL_QUIZ_PASS_PCT}%. Try again!
+            </div>
+          ` : ''}
+        </div>
+      `
     }
-    certSection = `
-      <div class="pp-card pp-card-glow" style="text-align:center;margin-bottom:2rem;border:2px solid var(--warning-500)">
-        <div style="font-size:3rem;margin-bottom:0.5rem">🎉</div>
-        <h2 style="color:var(--warning-600)">Congratulations! You've completed all chapters!</h2>
-        <p style="color:var(--text-muted);margin:0.5rem 0 1rem">Your certificate is ready</p>
-        <button class="pp-btn pp-btn-primary" onclick="window.__ppViewCertificate('${session.certificate.id}')">
-          View Your Certificate
-        </button>
-      </div>
-    `
   }
 
   return `
@@ -227,7 +293,7 @@ export async function renderChapters() {
         <h1>Welcome, ${session.student.name}!</h1>
         <p>${session.student.class_level} • ${session.course?.name || ''}</p>
       </div>
-      ${certSection}
+      ${finalSection}
       <div class="pp-progress-overview">
         <h2>Your Progress</h2>
         <div class="pp-progress-count">${completed.length} / ${chapters.length}</div>
@@ -263,13 +329,15 @@ window.__ppExit = function() {
   session.badges = []
   session.attempts = []
   session.certificate = null
+  session.finalQuizPassed = false
+  session.finalQuizResult = null
   clearStudentId()
   state.student = null
   navigate('landing')
 }
 
 // ============================================================
-// SECRET CODE ENTRY — Bulletproof Video Resolution
+// SECRET CODE ENTRY
 // ============================================================
 export async function renderCodeEntry() {
   const ch = state.currentChapter
@@ -278,20 +346,17 @@ export async function renderCodeEntry() {
   let youtubeUrl = ''
   let source = 'none'
 
-  // ① Chapter field
   if (ch.youtube_url) { youtubeUrl = ch.youtube_url; source = 'ch.youtube_url' }
   else if (ch.video_url) { youtubeUrl = ch.video_url; source = 'ch.video_url' }
   else if (ch.youtube_link) { youtubeUrl = ch.youtube_link; source = 'ch.youtube_link' }
   else if (ch.yt_link) { youtubeUrl = ch.yt_link; source = 'ch.yt_link' }
 
-  // ② Preloaded videos array
   if (!youtubeUrl && Array.isArray(ch._videos) && ch._videos.length > 0) {
     const v = ch._videos[0]
     youtubeUrl = v.youtube_url || v.video_url || v.url || v.youtube_id || ''
     if (youtubeUrl) source = 'ch._videos[0]'
   }
 
-  // ③ db.getVideosByChapter()
   if (!youtubeUrl) {
     try {
       const videos = await db.getVideosByChapter(ch.id)
@@ -301,12 +366,9 @@ export async function renderCodeEntry() {
         ch._videos = videos
         if (youtubeUrl) source = 'db.getVideosByChapter'
       }
-    } catch (e) {
-      console.warn('getVideosByChapter failed:', e)
-    }
+    } catch (e) { console.warn('getVideosByChapter failed:', e) }
   }
 
-  // ④ DIRECT SUPABASE QUERY — bypasses everything
   if (!youtubeUrl) {
     try {
       const { data, error } = await supabase
@@ -314,18 +376,14 @@ export async function renderCodeEntry() {
         .select('youtube_url')
         .eq('id', ch.id)
         .maybeSingle()
-
       if (!error && data?.youtube_url) {
         youtubeUrl = data.youtube_url
         ch.youtube_url = data.youtube_url
         source = 'DIRECT supabase query'
       }
-    } catch (e) {
-      console.warn('Direct supabase query failed:', e)
-    }
+    } catch (e) { console.warn('Direct query failed:', e) }
   }
 
-  // ⑤ SECOND DIRECT QUERY — try videos table
   if (!youtubeUrl) {
     try {
       const { data, error } = await supabase
@@ -334,26 +392,16 @@ export async function renderCodeEntry() {
         .eq('chapter_id', ch.id)
         .limit(1)
         .maybeSingle()
-
       if (!error && data) {
         youtubeUrl = data.youtube_url || data.video_url || data.url || data.youtube_id || ''
         if (youtubeUrl) source = 'DIRECT videos query'
       }
-    } catch (e) {
-      console.warn('Direct videos query failed:', e)
-    }
+    } catch (e) { console.warn('Direct videos query failed:', e) }
   }
 
   const videoId = extractYouTubeId(youtubeUrl)
 
-  console.log('🎬 ========== VIDEO RESOLUTION ==========')
-  console.log('   Chapter:', ch.title, '(id:', ch.id + ')')
-  console.log('   ch.youtube_url:', ch.youtube_url)
-  console.log('   ch._videos:', ch._videos)
-  console.log('   Source:', source)
-  console.log('   Final URL:', youtubeUrl)
-  console.log('   Extracted ID:', videoId)
-  console.log('=======================================')
+  console.log('🎬 Video resolution — source:', source, '| URL:', youtubeUrl, '| ID:', videoId)
 
   const videoSection = videoId
     ? `
@@ -378,12 +426,7 @@ export async function renderCodeEntry() {
           <iframe
             src="https://www.youtube.com/embed/${videoId}"
             title="${ch.title} video lesson"
-            style="
-              position: absolute;
-              top: 0; left: 0;
-              width: 100%; height: 100%;
-              border: 0;
-            "
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen
           ></iframe>
@@ -396,9 +439,6 @@ export async function renderCodeEntry() {
         <p style="color:#92400e;font-weight:600;margin:0">No video added for this chapter yet.</p>
         <p style="color:#92400e;font-size:0.85rem;margin-top:0.25rem">
           Ask your teacher to add a YouTube video via the admin panel.
-        </p>
-        <p style="color:#92400e;font-size:0.75rem;margin-top:0.5rem">
-          (Chapter ID: <code>${ch.id}</code>)
         </p>
       </div>
     `
@@ -457,7 +497,7 @@ export function attachCodeEntry() {
 }
 
 // ============================================================
-// QUIZ (shuffled questions AND options on every attempt)
+// QUIZ (regular chapter quiz — shuffled)
 // ============================================================
 let quizQuestions = []
 let quizAnswers = {}
@@ -470,7 +510,6 @@ export async function renderQuiz() {
 
   try {
     let fetched = await db.getQuestionsByQuiz(quiz.id, quiz.max_questions || 10)
-
     fetched = shuffleArray(fetched)
     fetched = fetched.map(q => shuffleQuestionOptions(q))
 
@@ -571,11 +610,8 @@ async function submitQuiz() {
   quizQuestions.forEach((q, i) => {
     const studentAns = quizAnswers[i]
     answers[q.id] = studentAns
-    if (studentAns === q.correct_answer) {
-      correct++
-    } else {
-      wrong++
-    }
+    if (studentAns === q.correct_answer) correct++
+    else wrong++
   })
 
   const total = quizQuestions.length
@@ -586,10 +622,7 @@ async function submitQuiz() {
     chapter_id: ch.id,
     chapter_title: ch.title,
     score: percentage,
-    correct,
-    wrong,
-    total,
-    passed,
+    correct, wrong, total, passed,
     attempted_at: new Date().toISOString(),
   })
 
@@ -620,35 +653,14 @@ async function submitQuiz() {
       })
     }
 
-    const allComplete = session.chapters.length > 0 && session.completedChapters.length === session.chapters.length
-    let certificate = null
-    if (allComplete) {
-      if (!session.certificate) {
-        session.certificate = {
-          id: 'session-cert-' + Date.now(),
-          certificate_number: generateCertNumber(),
-          student_name: session.student.name,
-          class_level: session.student.class_level,
-          program_name: session.course?.name || 'Class 7 Physics',
-          issued_date: new Date().toISOString(),
-        }
-        try {
-          if (typeof db.saveCertificate === 'function') {
-            await db.saveCertificate(session.certificate)
-          }
-        } catch (e) {
-          console.warn('Certificate DB save skipped:', e)
-        }
-      }
-      certificate = session.certificate
-    }
+    // ⚠️ Certificate is NOT generated here anymore — only after FINAL quiz
 
     state.earnedBadge = {
       name: badgeName,
       description: `You mastered ${ch.title}!`,
       icon: badgeIcon,
     }
-    navigate('badge', { badge: state.earnedBadge, chapter: ch, result, certificate })
+    navigate('badge', { badge: state.earnedBadge, chapter: ch, result })
     return
   }
 
@@ -656,7 +668,7 @@ async function submitQuiz() {
 }
 
 // ============================================================
-// QUIZ RESULT
+// QUIZ RESULT (for regular chapter quizzes)
 // ============================================================
 export async function renderResult() {
   const result = state.quizResult
@@ -727,7 +739,6 @@ export function renderBadge() {
   const badge = state.earnedBadge
   const ch = state.currentChapter
   const result = state.quizResult
-  const cert = session.certificate
   if (!badge) { navigate('chapters'); return '' }
 
   const allComplete = session.chapters.length > 0 && session.completedChapters.length === session.chapters.length
@@ -749,16 +760,309 @@ export function renderBadge() {
             📥 Download Badge
           </button>
         </div>
-        ${allComplete && cert ? `
-          <div class="pp-alert success" style="text-align:center;font-size:1rem;margin-top:1rem">
-            🎉 You've completed ALL chapters! Your certificate is ready!
+        ${allComplete ? `
+          <div class="pp-alert" style="text-align:center;font-size:1rem;margin-top:1rem;background:#eef2ff;color:#4338ca;border:1px solid #6366f1">
+            🎓 <strong>All chapters complete!</strong> Take the <strong>Final Combined Quiz</strong> to earn your certificate.
           </div>
-          <button class="pp-btn pp-btn-primary pp-btn-lg" onclick="window.__ppViewCertificate('${cert.id}')">
-            View My Certificate
+          <button class="pp-btn pp-btn-primary pp-btn-lg" onclick="window.__ppStartFinalQuiz()" style="margin-top:0.5rem">
+            🚀 Start Final Quiz
           </button>
         ` : ''}
         <div style="margin-top:1.5rem">
           <button class="pp-btn pp-btn-secondary" onclick="window.__ppNav('chapters')">Back to Chapters</button>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+// ============================================================
+// 🎓 FINAL COMBINED QUIZ
+// ============================================================
+let finalQuizQuestions = []
+let finalQuizAnswers = {}
+let finalQuizCurrentQ = 0
+
+window.__ppStartFinalQuiz = async function() {
+  console.log('🎓 Starting final combined quiz...')
+
+  try {
+    // 1. Get all quizzes for the chapters in this course
+    const chapterIds = session.chapters.map(c => c.id)
+    const allQuizzes = await db.getAllQuizzes()
+    const relevantQuizzes = allQuizzes.filter(q => chapterIds.includes(q.chapter_id) && q.is_active)
+
+    if (relevantQuizzes.length === 0) {
+      alert('❌ No quizzes found for this course yet. Ask your teacher.')
+      return
+    }
+
+    // 2. Fetch all questions from those quizzes
+    let allQuestions = []
+    for (const quiz of relevantQuizzes) {
+      const questions = await db.getQuestionsByQuiz(quiz.id, 100)
+      // Attach chapter info
+      questions.forEach(q => {
+        q._chapterId = quiz.chapter_id
+        const chapter = session.chapters.find(c => c.id === quiz.chapter_id)
+        q._chapterTitle = chapter?.title || ''
+      })
+      allQuestions = allQuestions.concat(questions)
+    }
+
+    if (allQuestions.length === 0) {
+      alert('❌ No questions found. Ask your teacher to add questions first.')
+      return
+    }
+
+    console.log(`🎓 Total questions found: ${allQuestions.length}`)
+
+    // 3. Shuffle ALL questions
+    let shuffled = shuffleArray(allQuestions)
+
+    // 4. Take the first N questions
+    shuffled = shuffled.slice(0, Math.min(FINAL_QUIZ_QUESTION_COUNT, shuffled.length))
+
+    // 5. Shuffle options within each question
+    shuffled = shuffled.map(q => shuffleQuestionOptions(q))
+
+    finalQuizQuestions = shuffled
+    finalQuizAnswers = {}
+    finalQuizCurrentQ = 0
+
+    navigate('final-quiz')
+  } catch (err) {
+    console.error('Final quiz error:', err)
+    alert('Error starting final quiz: ' + err.message)
+  }
+}
+
+export async function renderFinalQuiz() {
+  if (!session.student) { navigate('landing'); return '' }
+
+  if (finalQuizQuestions.length === 0) {
+    return `
+      <div class="pp-container">
+        <div class="pp-card pp-text-center">
+          <p>No questions available. Please go back and try again.</p>
+          <button class="pp-btn pp-btn-primary" onclick="window.__ppNav('chapters')">Back to Chapters</button>
+        </div>
+      </div>
+    `
+  }
+
+  return renderFinalQuizQuestion()
+}
+
+function renderFinalQuizQuestion() {
+  const q = finalQuizQuestions[finalQuizCurrentQ]
+  const total = finalQuizQuestions.length
+  const progressPct = ((finalQuizCurrentQ + 1) / total) * 100
+  const options = ['a', 'b', 'c', 'd']
+
+  const optionsHTML = options.map(opt => `
+    <div class="pp-option" data-answer="${opt}" onclick="window.__ppFinalSelectAnswer('${opt}')">
+      <div class="pp-option-letter">${opt.toUpperCase()}</div>
+      <div class="pp-option-text">${q[`option_${opt}`]}</div>
+    </div>
+  `).join('')
+
+  return `
+    <div class="pp-container">
+      <div class="pp-quiz-header">
+        <div style="background:#eef2ff;color:#4338ca;padding:0.4rem 1rem;border-radius:20px;display:inline-block;font-size:0.85rem;font-weight:600;margin-bottom:0.5rem">
+          🎓 FINAL COMBINED QUIZ
+        </div>
+        <h1>Professor Prabh Final Test</h1>
+        <div class="pp-quiz-meta">
+          <span>📝 Question ${finalQuizCurrentQ + 1} of ${total}</span>
+          <span>🎯 Pass: ${FINAL_QUIZ_PASS_PCT}%</span>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">
+          From chapter: <strong>${q._chapterTitle || 'Mixed'}</strong>
+        </p>
+        <div class="pp-quiz-progress">
+          <div class="pp-quiz-progress-bar" style="width:${progressPct}%"></div>
+        </div>
+      </div>
+      <div class="pp-question-card" id="pp-final-quiz-question">
+        <div class="pp-question-number">Question ${finalQuizCurrentQ + 1}</div>
+        <div class="pp-question-text">${q.question_text}</div>
+        <div class="pp-options" id="pp-final-options">${optionsHTML}</div>
+        <div class="pp-quiz-nav">
+          ${finalQuizCurrentQ > 0 ? `<button class="pp-btn pp-btn-secondary" onclick="window.__ppFinalPrevQuestion()">← Previous</button>` : '<div></div>'}
+          <button class="pp-btn pp-btn-primary" id="pp-final-next-btn" onclick="window.__ppFinalNextQuestion()" disabled>
+            ${finalQuizCurrentQ === total - 1 ? 'Submit Final Quiz' : 'Next →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function attachFinalQuiz() {
+  window.__ppFinalSelectAnswer = (opt) => {
+    finalQuizAnswers[finalQuizCurrentQ] = opt
+    document.querySelectorAll('.pp-option').forEach(el => el.classList.remove('selected'))
+    document.querySelector(`.pp-option[data-answer="${opt}"]`)?.classList.add('selected')
+    document.getElementById('pp-final-next-btn').disabled = false
+  }
+
+  window.__ppFinalNextQuestion = () => {
+    if (finalQuizCurrentQ < finalQuizQuestions.length - 1) {
+      finalQuizCurrentQ++
+      document.querySelector('#app').innerHTML = ''
+      document.querySelector('#app').innerHTML = renderFinalQuizQuestion()
+      attachFinalQuiz()
+    } else {
+      submitFinalQuiz()
+    }
+  }
+
+  window.__ppFinalPrevQuestion = () => {
+    if (finalQuizCurrentQ > 0) {
+      finalQuizCurrentQ--
+      document.querySelector('#app').innerHTML = ''
+      document.querySelector('#app').innerHTML = renderFinalQuizQuestion()
+      attachFinalQuiz()
+    }
+  }
+}
+
+async function submitFinalQuiz() {
+  let correct = 0
+  let wrong = 0
+  const answers = {}
+
+  finalQuizQuestions.forEach((q, i) => {
+    const studentAns = finalQuizAnswers[i]
+    answers[q.id] = studentAns
+    if (studentAns === q.correct_answer) correct++
+    else wrong++
+  })
+
+  const total = finalQuizQuestions.length
+  const percentage = Math.round((correct / total) * 100)
+  const passed = percentage >= FINAL_QUIZ_PASS_PCT
+
+  const result = {
+    total_questions: total,
+    correct_count: correct,
+    wrong_count: wrong,
+    score_percentage: percentage,
+    passed,
+    answers,
+    isFinal: true,
+  }
+
+  session.finalQuizResult = result
+  session.finalQuizPassed = passed
+
+  if (passed) {
+    // ✅ Now generate the certificate!
+    if (!session.certificate) {
+      session.certificate = {
+        id: 'session-cert-' + Date.now(),
+        certificate_number: generateCertNumber(),
+        student_name: session.student.name,
+        class_level: session.student.class_level,
+        program_name: session.course?.name || 'Class 7 Physics',
+        issued_date: new Date().toISOString(),
+      }
+      try {
+        if (typeof db.saveCertificate === 'function') {
+          await db.saveCertificate(session.certificate)
+        }
+      } catch (e) {
+        console.warn('Certificate DB save skipped:', e)
+      }
+    }
+  }
+
+  state.finalQuizResult = result
+  navigate('final-result')
+}
+
+// ============================================================
+// FINAL QUIZ RESULT
+// ============================================================
+export async function renderFinalResult() {
+  const result = state.finalQuizResult
+  if (!result) { navigate('chapters'); return '' }
+
+  const passed = result.passed
+  const questions = finalQuizQuestions
+  const answers = result.answers || {}
+
+  let reviewHTML = ''
+  if (passed && questions.length > 0) {
+    reviewHTML = `
+      <div class="pp-answer-review">
+        <h3>Answer Review — Final Quiz</h3>
+        ${questions.map((q, i) => {
+          const studentAns = answers[q.id]
+          const isCorrect = studentAns === q.correct_answer
+          return `
+            <div class="pp-answer-item ${isCorrect ? 'correct' : 'wrong'}">
+              <div class="pp-answer-q">${i + 1}. ${q.question_text}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin:0.2rem 0">
+                <em>From: ${q._chapterTitle || '—'}</em>
+              </div>
+              <div class="pp-answer-row"><span class="label">Your answer:</span> <span class="${isCorrect ? 'correct-text' : 'wrong-text'}">${studentAns ? studentAns.toUpperCase() + ' — ' + q[`option_${studentAns}`] : 'Not answered'}</span></div>
+              <div class="pp-answer-row"><span class="label">Correct answer:</span> <span class="correct-text">${q.correct_answer.toUpperCase()} — ${q[`option_${q.correct_answer}`]}</span></div>
+              ${q.explanation ? `<div class="pp-answer-explanation">💡 ${q.explanation}</div>` : ''}
+            </div>
+          `
+        }).join('')}
+      </div>
+    `
+  } else if (!passed) {
+    reviewHTML = `
+      <div class="pp-card" style="text-align:center;padding:1.5rem;background:#fff7ed;border:1px solid #fdba74;margin-top:1rem">
+        <div style="font-size:2rem;margin-bottom:0.5rem">📚</div>
+        <p style="color:#9a3412;font-weight:600;margin:0">Don't worry! Review all chapters and try again.</p>
+        <p style="color:#9a3412;font-size:0.85rem;margin-top:0.25rem">Answers are not shown — ask your teacher if you need help.</p>
+      </div>
+    `
+  }
+
+  const cert = session.certificate
+
+  return `
+    <div class="pp-container">
+      <button class="pp-back-btn" onclick="window.__ppNav('chapters')">← Back to Chapters</button>
+      <div class="pp-card pp-result-card">
+        <div class="pp-result-icon ${passed ? 'pass' : 'fail'}">${passed ? '🎓' : '📚'}</div>
+        <h2 class="pp-result-title ${passed ? 'pass' : 'fail'}">
+          ${passed ? '🎉 Congratulations! You passed the Final Quiz!' : 'Keep Learning!'}
+        </h2>
+        <p class="pp-result-subtitle">
+          ${passed
+            ? 'You have mastered all chapters! Your certificate is ready.'
+            : `You need ${FINAL_QUIZ_PASS_PCT}% to pass. Review and try again!`}
+        </p>
+        <div class="pp-result-percentage ${passed ? 'pass' : 'fail'}">${result.score_percentage}%</div>
+        <div class="pp-result-stats">
+          <div class="pp-stat-box"><div class="pp-stat-value">${result.total_questions}</div><div class="pp-stat-label">Total</div></div>
+          <div class="pp-stat-box correct"><div class="pp-stat-value">${result.correct_count}</div><div class="pp-stat-label">Correct</div></div>
+          <div class="pp-stat-box wrong"><div class="pp-stat-value">${result.wrong_count}</div><div class="pp-stat-label">Wrong</div></div>
+          <div class="pp-stat-box"><div class="pp-stat-value">${result.passed ? 'PASS' : 'FAIL'}</div><div class="pp-stat-label">Result</div></div>
+        </div>
+
+        ${passed && cert ? `
+          <div class="pp-alert success" style="text-align:center;font-size:1rem;margin-top:1rem">
+            🎉 Your <strong>Certificate of Excellence</strong> is unlocked!
+          </div>
+          <button class="pp-btn pp-btn-primary pp-btn-lg" onclick="window.__ppViewCertificate('${cert.id}')" style="margin-top:0.5rem">
+            📜 View My Certificate
+          </button>
+        ` : ''}
+
+        ${reviewHTML}
+
+        <div class="pp-mt-2 pp-flex pp-gap-2 pp-justify-between" style="justify-content:center;flex-wrap:wrap">
+          <button class="pp-btn pp-btn-secondary" onclick="window.__ppNav('chapters')">Back to Chapters</button>
+          ${!passed ? `<button class="pp-btn pp-btn-primary" onclick="window.__ppStartFinalQuiz()">🔄 Try Final Quiz Again</button>` : ''}
         </div>
       </div>
     </div>
@@ -811,6 +1115,8 @@ export async function renderCertificate() {
     </div>
   `).join('')
 
+  const finalScore = session.finalQuizResult?.score_percentage || 0
+
   return `
     <div class="pp-container">
       <button class="pp-back-btn" onclick="window.__ppNav('chapters')">← Back to Chapters</button>
@@ -834,7 +1140,10 @@ export async function renderCertificate() {
               <strong>${cert.program_name}</strong>
             </div>
 
-            <div class="cert-achievement">with outstanding performance and dedication</div>
+            <div class="cert-achievement">
+              with outstanding performance and dedication<br>
+              <span style="font-size:0.8rem">Final Quiz Score: <strong>${finalScore}%</strong></span>
+            </div>
 
             <div class="golden-badges-section">
               <div class="golden-badges-title">🏆 Badges Earned (${earnedCount}/5)</div>
@@ -884,7 +1193,7 @@ window.__ppViewCertificate = function(certId) {
   } else if (session.certificate) {
     navigate('certificate', { certificate: session.certificate })
   } else {
-    alert('Certificate not available. Please complete all chapters first.')
+    alert('Certificate not available. Please complete the Final Quiz first.')
   }
 }
 
@@ -902,7 +1211,6 @@ window.downloadBadge = function(badgeName, studentName) {
     top: 0;
     width: 400px;
     height: 500px;
-    background: linear-gradient(145deg, #1a1a2e, #0f0e17);
     border-radius: 20px;
     padding: 2px;
     background: linear-gradient(135deg, #f5d98e, #fbbf24, #f5d98e, #fbbf24);
@@ -924,62 +1232,26 @@ window.downloadBadge = function(badgeName, studentName) {
       text-align: center;
     ">
       <div style="font-size: 4rem; margin-bottom: 0.5rem;">🏅</div>
-      <div style="
-        font-size: 0.7rem;
-        color: #fbbf24;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-        margin-bottom: 0.5rem;
-      ">⭐ Certificate of Achievement</div>
-      <div style="
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #fbbf24;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        margin-bottom: 0.3rem;
-        text-shadow: 0 0 30px rgba(251, 191, 36, 0.2);
-      ">${badgeName}</div>
-      <div style="
-        font-size: 1rem;
-        color: #94a3b8;
-        margin-bottom: 0.5rem;
-      ">Presented to</div>
-      <div style="
-        font-size: 2.2rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, #f5d98e, #fbbf24);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-        margin-bottom: 1rem;
-        font-family: 'Georgia', serif;
-      ">${studentName}</div>
-      <div style="
-        font-size: 0.65rem;
-        color: #64748b;
-        margin-bottom: 1rem;
-        border-top: 1px solid rgba(255,215,0,0.1);
-        padding-top: 1rem;
-        width: 60%;
-      ">Earned on ${new Date().toLocaleDateString()}</div>
-      <div style="
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
-      ">
+      <div style="font-size: 0.7rem; color: #fbbf24; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 0.5rem;">
+        ⭐ Certificate of Achievement
+      </div>
+      <div style="font-size: 1.8rem; font-weight: 700; color: #fbbf24; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.3rem;">
+        ${badgeName}
+      </div>
+      <div style="font-size: 1rem; color: #94a3b8; margin-bottom: 0.5rem;">Presented to</div>
+      <div style="font-size: 2.2rem; font-weight: 700; background: linear-gradient(135deg, #f5d98e, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 1rem; font-family: 'Georgia', serif;">
+        ${studentName}
+      </div>
+      <div style="font-size: 0.65rem; color: #64748b; margin-bottom: 1rem; border-top: 1px solid rgba(255,215,0,0.1); padding-top: 1rem; width: 60%;">
+        Earned on ${new Date().toLocaleDateString()}
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
         <div style="font-size: 0.6rem; color: #64748b;">Professor Prabh</div>
         <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #fbbf24, transparent);"></div>
       </div>
-      <div style="
-        font-size: 0.5rem;
-        color: #4a4a4a;
-        margin-top: 0.5rem;
-        letter-spacing: 1px;
-      ">🏆 Professor Prabh Academy</div>
+      <div style="font-size: 0.5rem; color: #4a4a4a; margin-top: 0.5rem; letter-spacing: 1px;">
+        🏆 Professor Prabh Academy
+      </div>
     </div>
   `
 
@@ -1151,7 +1423,7 @@ function generateCertNumber() {
   return `CP7-${year}-${random}`
 }
 
-// ---- SHUFFLE HELPERS ----
+// ---- SHUFFLE ----
 function shuffleArray(arr) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -1177,12 +1449,11 @@ function shuffleQuestionOptions(q) {
   return newQ
 }
 
-// ---- YOUTUBE HELPER ----
+// ---- YOUTUBE ----
 function extractYouTubeId(url) {
   if (!url || typeof url !== 'string') return ''
   url = url.trim()
   if (!url) return ''
-
   if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url
 
   const patterns = [
