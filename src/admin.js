@@ -26,18 +26,42 @@ export function renderAdminLogin() {
           <p style="text-align:center;color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem">
             Enter your admin credentials and the secret key to access the panel.
           </p>
-          <form id="pp-admin-login-form">
+          <form id="pp-admin-login-form" autocomplete="on">
             <div class="pp-form-group">
-              <label class="pp-label">Email</label>
-              <input class="pp-input" type="email" name="email" required placeholder="admin@example.com" />
+              <label class="pp-label" for="pp-admin-email">Email</label>
+              <input
+                id="pp-admin-email"
+                class="pp-input"
+                type="text"
+                name="email"
+                required
+                placeholder="admin@example.com"
+                autocomplete="username"
+                inputmode="email"
+              />
             </div>
             <div class="pp-form-group">
-              <label class="pp-label">Password</label>
-              <input class="pp-input" type="password" name="password" required placeholder="Password" />
+              <label class="pp-label" for="pp-admin-password">Password</label>
+              <input
+                id="pp-admin-password"
+                class="pp-input"
+                type="password"
+                name="password"
+                required
+                placeholder="Password"
+                autocomplete="current-password"
+              />
             </div>
             <div class="pp-form-group">
-              <label class="pp-label">🔑 Secret Key</label>
-              <input class="pp-input" type="password" name="secret_key" required placeholder="Enter your secret key" />
+              <label class="pp-label" for="pp-admin-secret">🔑 Secret Key</label>
+              <input
+                id="pp-admin-secret"
+                class="pp-input"
+                type="password"
+                name="secret_key"
+                required
+                placeholder="Enter your secret key"
+              />
               <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
                 ⚠️ This is required for admin access
               </div>
@@ -64,7 +88,7 @@ export function renderAdminLogin() {
               </div>
               <div class="pp-form-group">
                 <label class="pp-label">Email</label>
-                <input class="pp-input" type="email" name="email" required placeholder="admin@example.com" />
+                <input class="pp-input" type="text" name="email" required placeholder="admin@example.com" autocomplete="username" />
               </div>
               <div class="pp-form-group">
                 <label class="pp-label">Password</label>
@@ -597,7 +621,7 @@ async function renderAdminCertificates() {
 }
 
 // ============================================================
-// ADMIN EMAIL LOGS  ✅ FIXED
+// ADMIN EMAIL LOGS
 // ============================================================
 async function renderAdminEmails() {
   let logs = []
@@ -749,15 +773,11 @@ function parseBulkQuestions(text) {
   const questions = []
   const errors = []
 
-  // Normalize line endings
   const raw = String(text || '').replace(/\r\n/g, '\n').trim()
   if (!raw) return { questions, errors: ['Empty input'] }
 
-  // Split into blocks by blank lines OR by "Q:" / "Q1:" markers
-  // Strategy: first split by blank lines; if any block has all parts, good.
   let blocks = raw.split(/\n\s*\n+/)
 
-  // If only one big block, split by question starters instead
   if (blocks.length === 1) {
     blocks = raw.split(/(?=^\s*(?:Q\s*\d*\s*[\.\):]|Question\s*\d*\s*[\.\):]|\d+\s*[\.\):])\s*)/mi)
   }
@@ -776,44 +796,36 @@ function parseBulkQuestions(text) {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
 
-      // Answer line
       let ansMatch = line.match(/^(?:Ans(?:wer)?|Correct(?:\s*Answer)?|Sol(?:ution)?)\s*[:\-]\s*([A-Da-d])/i)
       if (ansMatch) {
         correctLetter = ansMatch[1].toLowerCase()
         continue
       }
-      // Or Answer: B) text
       ansMatch = line.match(/^(?:Ans(?:wer)?|Correct)\s*[:\-]\s*([A-Da-d])\s*[\).:]?/i)
       if (ansMatch) {
         correctLetter = ansMatch[1].toLowerCase()
         continue
       }
 
-      // Option line: A) text / A. text / (A) text / A - text
       const optMatch = line.match(/^\(?\s*([A-Da-d])\s*[\).\]:\-]\s*(.+)$/)
       if (optMatch) {
         const letter = optMatch[1].toLowerCase()
         const text = optMatch[2].trim()
-        // Must not look like "Answer"
         if (/^[A-Da-d]$/.test(letter) && text.length > 0) {
           options[letter] = text
           continue
         }
       }
 
-      // Otherwise, treat as question text (first non-option, non-answer line)
       if (!questionText) {
-        // Strip leading "Q:", "Q1.", "1.", "Question 1:" etc.
         questionText = line
           .replace(/^\s*(?:Q\s*\d*\s*[\.\):]|Question\s*\d*\s*[\.\):]|\d+\s*[\.\):])\s*/i, '')
           .trim()
       } else if (!options.a && !options.b && !options.c && !options.d) {
-        // Extra question-line continuation
         questionText += ' ' + line
       }
     }
 
-    // Validate
     const missing = []
     if (!questionText) missing.push('question text')
     if (!options.a) missing.push('option A')
