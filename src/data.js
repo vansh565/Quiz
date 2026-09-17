@@ -1,5 +1,5 @@
 /* ============================================================
-   Professor Photon — Data Access Layer
+   Professor Prabh — Data Access Layer
    All Supabase queries go through here
    ============================================================ */
 
@@ -10,7 +10,6 @@ import { supabase, FUNCTIONS_URL } from './supabase.js'
 // ============================================================
 export async function findOrCreateStudent({ name, email, phone, class_level }) {
   try {
-    // First try to find existing student by email
     const { data: existing, error: findError } = await supabase
       .from('students')
       .select('*')
@@ -22,13 +21,12 @@ export async function findOrCreateStudent({ name, email, phone, class_level }) {
       throw new Error('Database error: ' + findError.message)
     }
 
-    // If student exists, update and return
     if (existing) {
       const { data: updated, error: updateError } = await supabase
         .from('students')
-        .update({ 
-          name, 
-          phone, 
+        .update({
+          name,
+          phone,
           class_level,
           updated_at: new Date().toISOString()
         })
@@ -40,17 +38,15 @@ export async function findOrCreateStudent({ name, email, phone, class_level }) {
         console.error('Error updating student:', updateError)
         return { student: existing, isNew: false }
       }
-      
       return { student: updated, isNew: false }
     }
 
-    // Create new student
     const { data: newStudent, error: createError } = await supabase
       .from('students')
-      .insert({ 
-        name, 
-        email, 
-        phone, 
+      .insert({
+        name,
+        email,
+        phone,
         class_level,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -60,20 +56,18 @@ export async function findOrCreateStudent({ name, email, phone, class_level }) {
 
     if (createError) {
       console.error('Error creating student:', createError)
-      
-      // If duplicate, try to fetch existing
+
       if (createError.code === '23505') {
         const { data: existingStudent } = await supabase
           .from('students')
           .select('*')
           .eq('email', email)
           .maybeSingle()
-        
         if (existingStudent) {
           return { student: existingStudent, isNew: false }
         }
       }
-      
+
       throw new Error('Failed to create student: ' + createError.message)
     }
 
@@ -213,29 +207,29 @@ export async function validateSecretCode(code, chapterId) {
   try {
     console.log('🔍 Validating code:', code)
     console.log('📚 Chapter ID:', chapterId)
-    
+
     const { data, error } = await supabase
       .from('secret_codes')
       .select('*')
       .eq('code', code.toUpperCase().trim())
       .eq('is_active', true)
       .maybeSingle()
-    
+
     console.log('📊 Query result:', data)
     console.log('❌ Error:', error)
-    
+
     if (error) {
       return { valid: false, message: 'Database error: ' + error.message }
     }
-    
+
     if (!data) {
       return { valid: false, message: 'Invalid secret code' }
     }
-    
+
     if (data.chapter_id !== chapterId) {
       return { valid: false, message: 'This code is for a different chapter' }
     }
-    
+
     return { valid: true, secretCode: data }
   } catch (error) {
     console.error('validateSecretCode error:', error)
@@ -258,17 +252,30 @@ export async function getSecretCodesByChapter(chapterId) {
   }
 }
 
+// ✅ Joins chapters table so admin panel can show chapter name
 export async function getAllSecretCodes() {
   try {
     const { data, error } = await supabase
       .from('secret_codes')
-      .select('*')
+      .select(`
+        *,
+        chapters:chapter_id (id, title, slug, course_id)
+      `)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
     return data || []
   } catch (error) {
     console.error('getAllSecretCodes error:', error)
-    return []
+    // Fallback: simple query without join
+    try {
+      const { data } = await supabase
+        .from('secret_codes')
+        .select('*')
+        .order('created_at', { ascending: false })
+      return data || []
+    } catch (e) {
+      return []
+    }
   }
 }
 
@@ -278,21 +285,21 @@ export async function getAllSecretCodes() {
 export async function getQuizByChapter(chapterId) {
   try {
     console.log('🎯 Getting quiz for chapter:', chapterId)
-    
+
     const { data, error } = await supabase
       .from('quizzes')
       .select('*')
       .eq('chapter_id', chapterId)
       .eq('is_active', true)
       .maybeSingle()
-    
+
     console.log('📝 Quiz found:', data)
-    
+
     if (error) {
       console.error('Error getting quiz:', error)
       return null
     }
-    
+
     return data
   } catch (error) {
     console.error('getQuizByChapter error:', error)
@@ -317,17 +324,29 @@ export async function getQuestionsByQuiz(quizId, limit = 10) {
   }
 }
 
+// ✅ Joins chapters table so admin panel can show chapter name
 export async function getAllQuizzes() {
   try {
     const { data, error } = await supabase
       .from('quizzes')
-      .select('*')
+      .select(`
+        *,
+        chapters:chapter_id (id, title, slug, course_id)
+      `)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
     return data || []
   } catch (error) {
     console.error('getAllQuizzes error:', error)
-    return []
+    try {
+      const { data } = await supabase
+        .from('quizzes')
+        .select('*')
+        .order('created_at', { ascending: false })
+      return data || []
+    } catch (e) {
+      return []
+    }
   }
 }
 
@@ -347,9 +366,6 @@ export async function getAllQuestions(quizId = null) {
 // ============================================================
 // QUIZ ATTEMPTS
 // ============================================================
-// ============================================================
-// QUIZ ATTEMPTS
-// ============================================================
 export async function saveQuizAttempt(attempt) {
   try {
     const cleanAttempt = {
@@ -364,20 +380,20 @@ export async function saveQuizAttempt(attempt) {
       passed: attempt.passed || false,
       attempted_at: new Date().toISOString()
     }
-    
+
     console.log('💾 Saving quiz attempt:', cleanAttempt)
-    
+
     const { data, error } = await supabase
       .from('quiz_attempts')
       .insert([cleanAttempt])
       .select()
       .single()
-    
+
     if (error) {
       console.error('❌ Error saving quiz attempt:', error)
       throw new Error(error.message)
     }
-    
+
     console.log('✅ Quiz attempt saved:', data)
     return data
   } catch (error) {
@@ -393,12 +409,11 @@ export async function getAttemptsByStudent(studentId, quizId = null) {
       .select('*')
       .eq('student_id', studentId)
       .order('attempted_at', { ascending: false })
-    
-    // Only add quiz_id filter if it's provided and not null
+
     if (quizId) {
       query = query.eq('quiz_id', quizId)
     }
-    
+
     const { data, error } = await query
     if (error) {
       console.error('Error getting attempts:', error)
@@ -418,18 +433,19 @@ export async function getAllAttempts() {
       .select('*')
       .order('attempted_at', { ascending: false })
       .limit(200)
-    
+
     if (error) {
       console.error('❌ Error getting attempts:', error)
       return []
     }
-    
+
     return data || []
   } catch (error) {
     console.error('❌ getAllAttempts error:', error)
     return []
   }
 }
+
 // ============================================================
 // CHAPTER PROGRESS
 // ============================================================
@@ -449,19 +465,17 @@ export async function getStudentProgress(studentId) {
 
 export async function markChapterComplete(studentId, chapterId) {
   try {
-    // Try RPC first
     const { data, error } = await supabase
       .rpc('mark_chapter_complete', {
         p_student_id: studentId,
         p_chapter_id: chapterId
       })
-    
+
     if (error) {
       console.error('RPC markChapterComplete error:', error)
-      // Fallback: direct insert/update
       return await markChapterCompleteFallback(studentId, chapterId)
     }
-    
+
     return data
   } catch (error) {
     console.error('markChapterComplete error:', error)
@@ -477,16 +491,16 @@ async function markChapterCompleteFallback(studentId, chapterId) {
       .eq('student_id', studentId)
       .eq('chapter_id', chapterId)
       .maybeSingle()
-    
+
     if (existing) {
       const { error } = await supabase
         .from('chapter_progress')
-        .update({ 
-          completed: true, 
-          completed_at: new Date().toISOString() 
+        .update({
+          completed: true,
+          completed_at: new Date().toISOString()
         })
         .eq('id', existing.id)
-      
+
       if (error) throw error
     } else {
       const { error } = await supabase
@@ -497,10 +511,10 @@ async function markChapterCompleteFallback(studentId, chapterId) {
           completed: true,
           completed_at: new Date().toISOString()
         })
-      
+
       if (error) throw error
     }
-    
+
     return true
   } catch (error) {
     console.error('Fallback markChapterComplete error:', error)
@@ -531,21 +545,28 @@ export async function getBadgesByCourse(courseId) {
   }
 }
 
+// ✅ Joins chapters table so admin panel can show chapter name
 export async function getAllBadges() {
   try {
     const { data, error } = await supabase
       .from('badges')
-      .select('*')
+      .select(`
+        *,
+        chapters:chapter_id (id, title, slug)
+      `)
       .order('created_at')
     if (error) throw new Error(error.message)
     return data || []
   } catch (error) {
     console.error('getAllBadges error:', error)
-    return []
+    try {
+      const { data } = await supabase.from('badges').select('*').order('created_at')
+      return data || []
+    } catch (e) {
+      return []
+    }
   }
 }
-
-// src/data.js - Update getStudentBadges
 
 export async function getStudentBadges(studentId) {
   try {
@@ -568,26 +589,23 @@ export async function getStudentBadges(studentId) {
     return []
   }
 }
-// src/data.js - Update awardBadge function
 
 export async function awardBadge(studentId, chapterId, badgeId) {
   try {
     console.log('🏆 Attempting to award badge:', { studentId, chapterId, badgeId })
-    
-    // First try RPC
+
     const { data, error } = await supabase
       .rpc('award_badge', {
         p_student_id: studentId,
         p_chapter_id: chapterId,
         p_badge_id: badgeId
       })
-    
+
     if (error) {
       console.warn('RPC awardBadge error, trying fallback:', error)
-      // Fallback: direct insert
       return await awardBadgeFallback(studentId, chapterId, badgeId)
     }
-    
+
     console.log('✅ Badge awarded successfully via RPC')
     return data
   } catch (error) {
@@ -598,20 +616,18 @@ export async function awardBadge(studentId, chapterId, badgeId) {
 
 async function awardBadgeFallback(studentId, chapterId, badgeId) {
   try {
-    // Check if already awarded
     const { data: existing } = await supabase
       .from('student_badges')
       .select('*')
       .eq('student_id', studentId)
       .eq('badge_id', badgeId)
       .maybeSingle()
-    
+
     if (existing) {
       console.log('ℹ️ Badge already awarded')
       return true
     }
-    
-    // Insert directly
+
     const { error } = await supabase
       .from('student_badges')
       .insert({
@@ -620,12 +636,12 @@ async function awardBadgeFallback(studentId, chapterId, badgeId) {
         chapter_id: chapterId,
         awarded_at: new Date().toISOString()
       })
-    
+
     if (error) {
       console.error('Fallback badge award error:', error)
       return false
     }
-    
+
     console.log('✅ Badge awarded successfully via fallback')
     return true
   } catch (error) {
@@ -682,27 +698,45 @@ export async function verifyCertificate(certNumber) {
     return null
   }
 }
-// src/data.js - Fix createCertificate
+
+// ✅ Saves an in-memory certificate to the DB (for verification later)
+export async function saveCertificate(cert) {
+  try {
+    const { data, error } = await supabase
+      .from('certificates')
+      .insert({
+        certificate_number: cert.certificate_number,
+        student_name: cert.student_name,
+        class_level: cert.class_level,
+        program_name: cert.program_name,
+        issued_date: cert.issued_date
+      })
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return data
+  } catch (error) {
+    console.error('saveCertificate error:', error)
+    throw error
+  }
+}
 
 export async function createCertificate(student, course) {
   try {
-    // Generate a unique certificate number
     const certNumber = `CP7-2026-${String(Math.floor(100000 + Math.random() * 900000))}`
-    
-    // Check if certificate already exists
+
     const { data: existing } = await supabase
       .from('certificates')
       .select('*')
       .eq('student_id', student.id)
       .eq('course_id', course.id)
       .maybeSingle()
-    
+
     if (existing) {
       console.log('✅ Certificate already exists:', existing.certificate_number)
       return existing
     }
-    
-    // Insert new certificate
+
     const { data: cert, error: certError } = await supabase
       .from('certificates')
       .insert({
@@ -716,12 +750,12 @@ export async function createCertificate(student, course) {
       })
       .select()
       .single()
-    
+
     if (certError) {
       console.error('Certificate creation error:', certError)
       throw new Error('Failed to create certificate: ' + certError.message)
     }
-    
+
     console.log('✅ Certificate created:', cert)
     return cert
   } catch (error) {
@@ -810,7 +844,7 @@ export async function getAllSubjects() {
 }
 
 // ============================================================
-// ADMIN CRUD (generic helpers for admin panel)
+// ADMIN CRUD (generic helpers)
 // ============================================================
 export async function adminInsert(table, row) {
   try {
@@ -845,14 +879,12 @@ export async function adminDelete(table, id) {
 }
 
 // ============================================================
-// EMAIL SENDING (disabled to prevent rate limit)
-// =====// src/data.js - Replace these functions to enable emails
-
+// EMAIL SENDING
+// ============================================================
 export async function sendBadgeEmail(student, badge, chapter) {
   try {
-    console.log(`📧 Sending badge email to ${student.email}: ${badge.name}`);
-    
-    // Try to send email via Supabase Edge Function
+    console.log(`📧 Sending badge email to ${student.email}: ${badge.name}`)
+
     const response = await fetch(`${FUNCTIONS_URL}/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -863,39 +895,38 @@ export async function sendBadgeEmail(student, badge, chapter) {
         badgeName: badge.name,
         chapterTitle: chapter.title
       })
-    });
-    
-    const result = await response.json();
-    
-    // Log the email
+    })
+
+    const result = await response.json()
+
     await logEmail(
-      student.id, 
-      'badge', 
-      student.email, 
-      `🎉 You earned the ${badge.name} badge!`, 
+      student.id,
+      'badge',
+      student.email,
+      `🎉 You earned the ${badge.name} badge!`,
       result.success ? 'sent' : 'failed',
       result.error
-    );
-    
-    return result;
+    )
+
+    return result
   } catch (err) {
-    console.error('sendBadgeEmail error:', err);
+    console.error('sendBadgeEmail error:', err)
     await logEmail(
-      student.id, 
-      'badge', 
-      student.email, 
-      `🎉 You earned the ${badge.name} badge!`, 
-      'failed', 
+      student.id,
+      'badge',
+      student.email,
+      `🎉 You earned the ${badge.name} badge!`,
+      'failed',
       err.message
-    );
-    return { success: false, error: err.message };
+    )
+    return { success: false, error: err.message }
   }
 }
 
 export async function sendCertificateEmail(student, certificate) {
   try {
-    console.log(`📧 Sending certificate email to ${student.email}: ${certificate.certificate_number}`);
-    
+    console.log(`📧 Sending certificate email to ${student.email}: ${certificate.certificate_number}`)
+
     const response = await fetch(`${FUNCTIONS_URL}/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -906,30 +937,30 @@ export async function sendCertificateEmail(student, certificate) {
         certificateNumber: certificate.certificate_number,
         programName: certificate.program_name
       })
-    });
-    
-    const result = await response.json();
-    
+    })
+
+    const result = await response.json()
+
     await logEmail(
-      student.id, 
-      'certificate', 
-      student.email, 
-      `📜 Your Certificate is Ready!`, 
+      student.id,
+      'certificate',
+      student.email,
+      `📜 Your Certificate is Ready!`,
       result.success ? 'sent' : 'failed',
       result.error
-    );
-    
-    return result;
+    )
+
+    return result
   } catch (err) {
-    console.error('sendCertificateEmail error:', err);
+    console.error('sendCertificateEmail error:', err)
     await logEmail(
-      student.id, 
-      'certificate', 
-      student.email, 
-      `📜 Your Certificate is Ready!`, 
-      'failed', 
+      student.id,
+      'certificate',
+      student.email,
+      `📜 Your Certificate is Ready!`,
+      'failed',
       err.message
-    );
-    return { success: false, error: err.message };
+    )
+    return { success: false, error: err.message }
   }
 }
