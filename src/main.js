@@ -1,32 +1,33 @@
 /* ============================================================
-   Professor Photon — Main App Entry
+   Professor Prabh — Main App Entry (No Dashboard / No History)
    ============================================================ */
 
 import './styles.css'
 import { supabase } from './supabase.js'
-import { state, navigate, setStudent, getStudentId, clearStudentId, setRender, getRoute, autoLogin } from './state.js'
 import {
-  renderLanding, 
-  attachOnboarding, 
-  renderDashboard, 
-  renderChapter, 
+  state, navigate, setStudent, getStudentId, clearStudentId,
+  setRender, getRoute, autoLogin
+} from './state.js'
+import {
+  renderLanding,
+  attachOnboarding,
+  renderChapters,
+  renderCodeEntry,
   attachCodeEntry,
-  renderCodeEntry, 
-  renderQuiz, 
-  attachQuiz, 
-  renderResult, 
+  renderQuiz,
+  attachQuiz,
+  renderResult,
   renderBadge,
-  renderCertificate, 
-  renderVerify, 
-  attachVerify, 
+  renderCertificate,
+  renderVerify,
+  attachVerify,
   studentLogout,
-  renderAchievements
 } from './student.js'
 import {
-  renderAdminLogin, 
-  attachAdminLogin, 
-  renderAdminPanel, 
-  attachAdminPanel, 
+  renderAdminLogin,
+  attachAdminLogin,
+  renderAdminPanel,
+  attachAdminPanel,
   adminLogout,
 } from './admin.js'
 import { getStudentById } from './data.js'
@@ -65,24 +66,8 @@ async function render() {
 }
 
 async function renderStudentRoute() {
-  if (!state.student) {
-    const savedId = getStudentId()
-    if (savedId) {
-      try {
-        const student = await getStudentById(savedId)
-        if (student) {
-          setStudent(student)
-          if (state.view === 'landing') {
-            state.view = 'dashboard'
-          }
-        } else {
-          clearStudentId()
-        }
-      } catch (error) {
-        console.error('Auto-login error:', error)
-      }
-    }
-  }
+  // NOTE: No auto-login from localStorage for students anymore.
+  // Student session is purely in-memory (see student.js).
 
   if (state.view === 'certificate' && !state.certificate) {
     const route = getRoute()
@@ -98,19 +83,10 @@ async function renderStudentRoute() {
 
   switch (state.view) {
     case 'landing':
-      if (state.student) {
-        state.view = 'dashboard'
-        return await renderDashboard()
-      }
-      const landingHtml = renderLanding()
       setTimeout(() => attachOnboarding(), 0)
-      return landingHtml
-    case 'dashboard':
-      return await renderDashboard()
-    case 'achievements':
-      return await renderAchievements()
-    case 'chapter':
-      return await renderChapter()
+      return renderLanding()
+    case 'chapters':
+      return await renderChapters()
     case 'code':
       return renderCodeEntry()
     case 'quiz':
@@ -120,9 +96,10 @@ async function renderStudentRoute() {
     case 'badge':
       return renderBadge()
     case 'certificate':
-      return renderCertificate()
+      return await renderCertificate()
     default:
       state.view = 'landing'
+      setTimeout(() => attachOnboarding(), 0)
       return renderLanding()
   }
 }
@@ -146,12 +123,9 @@ function attachStudentHandlers() {
   }
 }
 
-setRender(async () => {
-  await render()
-})
-// src/main.js - Update renderHeader function
-// src/main.js - Update renderHeader function
-
+// ============================================================
+// HEADER (no Dashboard / Achievements links anymore)
+// ============================================================
 function renderHeader() {
   const route = getRoute()
   const isAdmin = route.path === 'admin'
@@ -162,8 +136,7 @@ function renderHeader() {
     navHTML = `<button class="pp-nav-btn" onclick="window.__ppAdminLogout()">Sign Out</button>`
   } else if (state.student && !isAdmin && !isVerify) {
     navHTML = `
-      <button class="pp-nav-btn" onclick="window.__ppNav('dashboard')">Dashboard</button>
-      <button class="pp-nav-btn" onclick="window.__ppNav('achievements')">🏆 Achievements</button>
+      <button class="pp-nav-btn" onclick="window.__ppNav('chapters')">Chapters</button>
       <button class="pp-nav-btn" onclick="window.__ppStudentLogout()">Sign Out</button>
     `
   }
@@ -187,10 +160,12 @@ function renderHeader() {
     </div>
   `
 }
+
 window.__ppGoHome = () => {
   window.location.hash = ''
-  state.view = 'landing'
-  render()
+  // If a student is active, go to chapters; else landing
+  state.view = state.student ? 'chapters' : 'landing'
+  fullRender()
 }
 
 window.__ppStudentLogout = () => studentLogout()
@@ -210,7 +185,8 @@ setRender(async () => {
 
 async function init() {
   console.log('🚀 Initializing app...')
-  
+
+  // Admin auth check (Supabase session) — still needed
   const { data: { session } } = await supabase.auth.getSession()
   if (session) {
     const { data: profile } = await supabase
@@ -223,12 +199,7 @@ async function init() {
     }
   }
 
-  const loggedIn = await autoLogin(getStudentById)
-  if (loggedIn) {
-    console.log('✅ Student auto-logged in')
-  } else {
-    console.log('ℹ️ No saved student session found')
-  }
+  // NOTE: Student auto-login REMOVED (no persistence wanted)
 
   supabase.auth.onAuthStateChange((event, session) => {
     (async () => {
