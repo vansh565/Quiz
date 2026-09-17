@@ -3237,10 +3237,7 @@ a:hover { color: var(--primary-700); }
   transform: scale(1.05);
 }
 
-/* Remove email from onboarding */
-.pp-onboarding-card .pp-form-group input[type="email"] {
-  display: none;
-}
+
 
 /* Updated Certificate Name */
 .pp-cert-title {
