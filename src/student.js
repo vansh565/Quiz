@@ -21,13 +21,13 @@ const CHAPTER_ICON_CLASSES = {
 // IN-MEMORY SESSION (no DB persistence for student progress)
 // ============================================================
 const session = {
-  student: null,          // { name, class_level }
-  course: null,           // active course for this class
-  chapters: [],           // all chapters for the class
-  completedChapters: [],  // array of chapter ids completed in this session
-  badges: [],             // badges earned this session
-  attempts: [],           // quiz attempts this session
-  certificate: null,      // generated certificate object (in memory only)
+  student: null,
+  course: null,
+  chapters: [],
+  completedChapters: [],
+  badges: [],
+  attempts: [],
+  certificate: null,
 }
 
 // ============================================================
@@ -55,7 +55,7 @@ export function renderLanding() {
         <p>Learn physics the fun way! Watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate!</p>
         <div class="pp-features">
           <div class="pp-feature"><div class="pp-feature-icon">🎬</div><div class="pp-feature-text">Video Lessons</div></div>
-       
+          <div class="pp-feature"><div class="pp-feature-icon">🔐</div><div class="pp-feature-text">Secret Codes</div></div>
           <div class="pp-feature"><div class="pp-feature-icon">🏆</div><div class="pp-feature-text">Earn Badges</div></div>
           <div class="pp-feature"><div class="pp-feature-icon">📜</div><div class="pp-feature-text">Certificate</div></div>
         </div>
@@ -116,14 +116,12 @@ export function attachOnboarding() {
     errEl.classList.add('pp-hidden')
 
     try {
-      // Reset session
       session.student = { name, class_level }
       session.completedChapters = []
       session.badges = []
       session.attempts = []
       session.certificate = null
 
-      // Load chapters for this class
       const courses = await db.getActiveCourses()
       const course = courses.find(c => c.class_level === class_level) || courses[0]
       if (!course) {
@@ -132,11 +130,14 @@ export function attachOnboarding() {
       session.course = course
       session.chapters = await db.getChaptersByCourse(course.id)
 
-      // 🔎 Pre-load videos for each chapter (so code page has them ready)
+      console.log('📚 Loaded chapters:', session.chapters)
+
+      // Preload videos from the videos table
       try {
         for (const ch of session.chapters) {
           const videos = await db.getVideosByChapter(ch.id)
           ch._videos = videos || []
+          console.log(`🎬 Chapter "${ch.title}" — youtube_url: ${ch.youtube_url} — videos: ${videos?.length || 0}`)
         }
       } catch (e) {
         console.warn('Could not preload videos:', e)
@@ -153,7 +154,7 @@ export function attachOnboarding() {
 }
 
 // ============================================================
-// CHAPTERS LIST (replaces dashboard)
+// CHAPTERS LIST
 // ============================================================
 export async function renderChapters() {
   if (!session.student) {
@@ -189,7 +190,6 @@ export async function renderChapters() {
     `
   }).join('')
 
-  // Certificate section
   let certSection = ''
   if (allComplete) {
     if (!session.certificate) {
@@ -201,7 +201,6 @@ export async function renderChapters() {
         program_name: session.course?.name || 'Class 7 Physics',
         issued_date: new Date().toISOString(),
       }
-      // Optional: save to DB so verification works
       try {
         if (typeof db.saveCertificate === 'function') {
           await db.saveCertificate(session.certificate)
@@ -247,7 +246,7 @@ export async function renderChapters() {
 }
 
 // ============================================================
-// OPEN CHAPTER -> directly go to code entry
+// OPEN CHAPTER
 // ============================================================
 window.__ppOpenChapter = function(chapterId) {
   const ch = session.chapters.find(c => c.id === chapterId)
@@ -270,28 +269,29 @@ window.__ppExit = function() {
 }
 
 // ============================================================
-// SECRET CODE ENTRY
-//   ✅ Form on top
-//   ✅ YouTube video shown BELOW (fetched from chapter OR videos table)
+// SECRET CODE ENTRY — Bulletproof Video Resolution
 // ============================================================
 export async function renderCodeEntry() {
   const ch = state.currentChapter
   if (!ch || !session.student) { navigate('landing'); return '' }
 
-  // 🔎 Try to find a YouTube URL from multiple sources
-  let youtubeUrl =
-    ch.youtube_url ||
-    ch.video_url ||
-    ch.youtube_link ||
-    ''
+  let youtubeUrl = ''
+  let source = 'none'
 
-  // If chapter has no URL, try the videos array (already preloaded)
+  // ① Chapter field
+  if (ch.youtube_url) { youtubeUrl = ch.youtube_url; source = 'ch.youtube_url' }
+  else if (ch.video_url) { youtubeUrl = ch.video_url; source = 'ch.video_url' }
+  else if (ch.youtube_link) { youtubeUrl = ch.youtube_link; source = 'ch.youtube_link' }
+  else if (ch.yt_link) { youtubeUrl = ch.yt_link; source = 'ch.yt_link' }
+
+  // ② Preloaded videos array
   if (!youtubeUrl && Array.isArray(ch._videos) && ch._videos.length > 0) {
     const v = ch._videos[0]
     youtubeUrl = v.youtube_url || v.video_url || v.url || v.youtube_id || ''
+    if (youtubeUrl) source = 'ch._videos[0]'
   }
 
-  // If still nothing, fetch fresh from DB
+  // ③ db.getVideosByChapter()
   if (!youtubeUrl) {
     try {
       const videos = await db.getVideosByChapter(ch.id)
@@ -299,45 +299,107 @@ export async function renderCodeEntry() {
         const v = videos[0]
         youtubeUrl = v.youtube_url || v.video_url || v.url || v.youtube_id || ''
         ch._videos = videos
+        if (youtubeUrl) source = 'db.getVideosByChapter'
       }
     } catch (e) {
-      console.warn('Could not fetch videos:', e)
+      console.warn('getVideosByChapter failed:', e)
+    }
+  }
+
+  // ④ DIRECT SUPABASE QUERY — bypasses everything
+  if (!youtubeUrl) {
+    try {
+      const { data, error } = await supabase
+        .from('chapters')
+        .select('youtube_url')
+        .eq('id', ch.id)
+        .maybeSingle()
+
+      if (!error && data?.youtube_url) {
+        youtubeUrl = data.youtube_url
+        ch.youtube_url = data.youtube_url
+        source = 'DIRECT supabase query'
+      }
+    } catch (e) {
+      console.warn('Direct supabase query failed:', e)
+    }
+  }
+
+  // ⑤ SECOND DIRECT QUERY — try videos table
+  if (!youtubeUrl) {
+    try {
+      const { data, error } = await supabase
+        .from('videos')
+        .select('youtube_url, youtube_id, video_url, url')
+        .eq('chapter_id', ch.id)
+        .limit(1)
+        .maybeSingle()
+
+      if (!error && data) {
+        youtubeUrl = data.youtube_url || data.video_url || data.url || data.youtube_id || ''
+        if (youtubeUrl) source = 'DIRECT videos query'
+      }
+    } catch (e) {
+      console.warn('Direct videos query failed:', e)
     }
   }
 
   const videoId = extractYouTubeId(youtubeUrl)
 
-  console.log('🎬 Video URL found:', youtubeUrl, '→ ID:', videoId)
+  console.log('🎬 ========== VIDEO RESOLUTION ==========')
+  console.log('   Chapter:', ch.title, '(id:', ch.id + ')')
+  console.log('   ch.youtube_url:', ch.youtube_url)
+  console.log('   ch._videos:', ch._videos)
+  console.log('   Source:', source)
+  console.log('   Final URL:', youtubeUrl)
+  console.log('   Extracted ID:', videoId)
+  console.log('=======================================')
 
   const videoSection = videoId
     ? `
-      <div class="pp-card pp-mt-2">
-        <div class="pp-video-wrapper">
+      <div class="pp-card" style="margin-top:1.5rem">
+        <h3 style="text-align:center;color:var(--primary-800);margin-bottom:0.75rem">
+          📺 Watch the Lesson
+        </h3>
+        <p style="text-align:center;color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem">
+          Watch the video to find the secret code!
+        </p>
+        <div style="
+          position: relative;
+          width: 100%;
+          padding-bottom: 56.25%;
+          height: 0;
+          min-height: 280px;
+          border-radius: 12px;
+          overflow: hidden;
+          background: #000;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        ">
           <iframe
             src="https://www.youtube.com/embed/${videoId}"
             title="${ch.title} video lesson"
+            style="
+              position: absolute;
+              top: 0; left: 0;
+              width: 100%; height: 100%;
+              border: 0;
+            "
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowfullscreen
           ></iframe>
         </div>
-        <div class="pp-video-info">
-          <h2>${ch.title} — Video Lesson</h2>
-          <p>Watch the video to find the secret code!</p>
-        </div>
-        <div class="pp-code-notice">
-          <div class="pp-code-notice-icon">🔐</div>
-          <div class="pp-code-notice-text">
-            <strong>Watch the video to find the secret code!</strong><br>
-            Enter the code above to unlock the quiz for this chapter.
-          </div>
-        </div>
       </div>
     `
     : `
-      <div class="pp-card pp-mt-2" style="text-align:center;padding:1.5rem;background:#fef3c7;border:1px solid #f59e0b">
+      <div class="pp-card" style="margin-top:1.5rem;text-align:center;padding:1.5rem;background:#fef3c7;border:1px solid #f59e0b">
         <div style="font-size:2rem;margin-bottom:0.5rem">🎬</div>
         <p style="color:#92400e;font-weight:600;margin:0">No video added for this chapter yet.</p>
-        <p style="color:#92400e;font-size:0.85rem;margin-top:0.25rem">Ask your teacher to add a YouTube video.</p>
+        <p style="color:#92400e;font-size:0.85rem;margin-top:0.25rem">
+          Ask your teacher to add a YouTube video via the admin panel.
+        </p>
+        <p style="color:#92400e;font-size:0.75rem;margin-top:0.5rem">
+          (Chapter ID: <code>${ch.id}</code>)
+        </p>
       </div>
     `
 
@@ -409,10 +471,7 @@ export async function renderQuiz() {
   try {
     let fetched = await db.getQuestionsByQuiz(quiz.id, quiz.max_questions || 10)
 
-    // 🔀 SHUFFLE QUESTIONS ON EVERY ATTEMPT
     fetched = shuffleArray(fetched)
-
-    // 🔀 ALSO SHUFFLE OPTIONS INSIDE EACH QUESTION
     fetched = fetched.map(q => shuffleQuestionOptions(q))
 
     quizQuestions = fetched
@@ -523,7 +582,6 @@ async function submitQuiz() {
   const percentage = Math.round((correct / total) * 100)
   const passed = percentage >= quiz.passing_percentage
 
-  // Store attempt in session memory only
   session.attempts.push({
     chapter_id: ch.id,
     chapter_title: ch.title,
@@ -546,12 +604,10 @@ async function submitQuiz() {
   state.quizResult = result
 
   if (passed) {
-    // Mark chapter complete in session
     if (!session.completedChapters.includes(ch.id)) {
       session.completedChapters.push(ch.id)
     }
 
-    // Award badge (in memory only)
     const badgeName = getBadgeNameForChapter(ch.slug, ch.title)
     const badgeIcon = CHAPTER_ICONS[ch.slug] || '🏅'
     if (!session.badges.find(b => b.chapter_id === ch.id)) {
@@ -564,7 +620,6 @@ async function submitQuiz() {
       })
     }
 
-    // Check if all chapters complete
     const allComplete = session.chapters.length > 0 && session.completedChapters.length === session.chapters.length
     let certificate = null
     if (allComplete) {
@@ -602,8 +657,6 @@ async function submitQuiz() {
 
 // ============================================================
 // QUIZ RESULT
-//   ✅ Answer review only when PASSED.
-//   ❌ Failed → friendly message, no answers revealed.
 // ============================================================
 export async function renderResult() {
   const result = state.quizResult
@@ -668,7 +721,7 @@ export async function renderResult() {
 }
 
 // ============================================================
-// BADGE CELEBRATION (in-memory, download anytime)
+// BADGE CELEBRATION
 // ============================================================
 export function renderBadge() {
   const badge = state.earnedBadge
@@ -713,7 +766,7 @@ export function renderBadge() {
 }
 
 // ============================================================
-// CERTIFICATE (in-memory, download anytime)
+// CERTIFICATE
 // ============================================================
 export async function renderCertificate() {
   const cert = session.certificate
@@ -823,7 +876,7 @@ export async function renderCertificate() {
 }
 
 // ============================================================
-// VIEW CERTIFICATE (in-memory)
+// VIEW CERTIFICATE
 // ============================================================
 window.__ppViewCertificate = function(certId) {
   if (session.certificate && session.certificate.id === certId) {
@@ -1130,7 +1183,6 @@ function extractYouTubeId(url) {
   url = url.trim()
   if (!url) return ''
 
-  // Already a raw 11-char YouTube ID
   if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url
 
   const patterns = [
@@ -1149,7 +1201,7 @@ function extractYouTubeId(url) {
 }
 
 // ============================================================
-// CERTIFICATE VERIFICATION (uses DB)
+// CERTIFICATE VERIFICATION
 // ============================================================
 export function renderVerify() {
   return `
