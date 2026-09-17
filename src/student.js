@@ -55,7 +55,7 @@ export function renderLanding() {
         <p>Learn physics the fun way! Watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate!</p>
         <div class="pp-features">
           <div class="pp-feature"><div class="pp-feature-icon">🎬</div><div class="pp-feature-text">Video Lessons</div></div>
-          <div class="pp-feature"><div class="pp-feature-icon">🔐</div><div class="pp-feature-text">Secret Codes</div></div>
+       
           <div class="pp-feature"><div class="pp-feature-icon">🏆</div><div class="pp-feature-text">Earn Badges</div></div>
           <div class="pp-feature"><div class="pp-feature-icon">📜</div><div class="pp-feature-text">Certificate</div></div>
         </div>
