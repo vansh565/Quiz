@@ -365,9 +365,17 @@ async function renderAdminStudents() {
     </div>
     <div class="pp-card">
       <table class="pp-admin-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
         <tbody>
-          ${students.map(s => `<tr><td>${s.name}</td><td>${s.email || '—'}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>`).join('') || '<tr><td colspan="4" class="pp-admin-empty">No students found</td></tr>'}
+          ${students.map((s, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td><strong>${s.name}</strong></td>
+              <td>${s.email || '—'}</td>
+              <td>${s.class_level}</td>
+              <td>${new Date(s.created_at).toLocaleString()}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="5" class="pp-admin-empty">No students found</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -435,6 +443,9 @@ async function renderAdminVideos() {
     db.getAllChapters(),
   ])
 
+  const chapterMap = {}
+  chapters.forEach(ch => { chapterMap[ch.id] = ch })
+
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Videos</h1>
@@ -447,7 +458,7 @@ async function renderAdminVideos() {
           ${videos.map(v => `
             <tr>
               <td>${v.title}</td>
-              <td>${chapters.find(c => c.id === v.chapter_id)?.title || '—'}</td>
+              <td>${chapterMap[v.chapter_id]?.title || '—'}</td>
               <td style="font-family:monospace;font-size:0.85rem">${v.youtube_id || '—'}</td>
               <td><span class="pp-badge-chip ${v.is_active ? 'active' : 'inactive'}">${v.is_active ? 'Active' : 'Inactive'}</span></td>
               <td>
@@ -463,31 +474,68 @@ async function renderAdminVideos() {
 }
 
 // ============================================================
-// ADMIN SECRET CODES
+// ADMIN SECRET CODES  ✅ FIXED — shows chapter name
 // ============================================================
 async function renderAdminCodes() {
-  const codes = await db.getAllSecretCodes()
+  const [codes, chapters] = await Promise.all([
+    db.getAllSecretCodes(),
+    db.getAllChapters(),
+  ])
+
+  // Build lookup map in case join fails
+  const chapterMap = {}
+  chapters.forEach(ch => { chapterMap[ch.id] = ch })
+
+  // Group codes by chapter
+  const codesByChapter = {}
+  codes.forEach(c => {
+    if (!codesByChapter[c.chapter_id]) codesByChapter[c.chapter_id] = []
+    codesByChapter[c.chapter_id].push(c)
+  })
+
+  // Chapters WITHOUT a code
+  const chaptersWithoutCodes = chapters.filter(ch => !codesByChapter[ch.id])
 
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Secret Codes</h1>
       <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppAddCode()">+ Add Secret Code</button>
     </div>
+
+    ${chaptersWithoutCodes.length > 0 ? `
+      <div class="pp-card pp-mb-2" style="background:#fef3c7;border:1px solid #f59e0b">
+        <strong style="color:#92400e">⚠️ Chapters without a secret code (${chaptersWithoutCodes.length}):</strong>
+        <div style="margin-top:0.5rem;font-size:0.9rem">
+          ${chaptersWithoutCodes.map(ch => `
+            <span style="display:inline-block;background:#fff;padding:0.25rem 0.75rem;border-radius:20px;margin:0.25rem;border:1px solid #fdba74">
+              ${ch.title}
+            </span>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
     <div class="pp-card">
       <table class="pp-admin-table">
         <thead><tr><th>Code</th><th>Chapter</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
-          ${codes.map(c => `
-            <tr>
-              <td style="font-family:monospace;font-weight:700">${c.code}</td>
-              <td>${c.chapters?.title || '—'}</td>
-              <td><span class="pp-badge-chip ${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'Active' : 'Inactive'}</span></td>
-              <td>
-                <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppToggleCode('${c.id}', ${!c.is_active})">${c.is_active ? 'Deactivate' : 'Activate'}</button>
-                <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteCode('${c.id}')">Delete</button>
-              </td>
-            </tr>
-          `).join('') || '<tr><td colspan="4" class="pp-admin-empty">No secret codes yet</td></tr>'}
+          ${codes.map(c => {
+            const chapterTitle =
+              c.chapters?.title ||
+              chapterMap[c.chapter_id]?.title ||
+              (c.chapter_id ? `Chapter ${String(c.chapter_id).slice(0, 8)}…` : '—')
+            return `
+              <tr>
+                <td style="font-family:monospace;font-weight:700">${c.code}</td>
+                <td>${chapterTitle}</td>
+                <td><span class="pp-badge-chip ${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                  <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppToggleCode('${c.id}', ${!c.is_active})">${c.is_active ? 'Deactivate' : 'Activate'}</button>
+                  <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteCode('${c.id}')">Delete</button>
+                </td>
+              </tr>
+            `
+          }).join('') || '<tr><td colspan="4" class="pp-admin-empty">No secret codes yet</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -495,7 +543,7 @@ async function renderAdminCodes() {
 }
 
 // ============================================================
-// ADMIN QUIZZES & QUESTIONS
+// ADMIN QUIZZES & QUESTIONS  ✅ FIXED — shows chapter name
 // ============================================================
 async function renderAdminQuizzes() {
   const [quizzes, questions, chapters] = await Promise.all([
@@ -504,8 +552,11 @@ async function renderAdminQuizzes() {
     db.getAllChapters(),
   ])
 
+  const chapterMap = {}
+  chapters.forEach(ch => { chapterMap[ch.id] = ch })
+
   const quizzesHTML = quizzes.map(q => {
-    const chapter = chapters.find(c => c.id === q.chapter_id)
+    const chapter = q.chapters || chapterMap[q.chapter_id]
     const qCount = questions.filter(qu => qu.quiz_id === q.id).length
     return `
       <div class="pp-card pp-mb-2">
@@ -527,38 +578,80 @@ async function renderAdminQuizzes() {
     `
   }).join('')
 
+  const chaptersWithoutQuiz = chapters.filter(ch => !quizzes.some(q => q.chapter_id === ch.id))
+
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Quizzes & Questions</h1>
       <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppAddQuiz()">+ Add Quiz</button>
     </div>
+
+    ${chaptersWithoutQuiz.length > 0 ? `
+      <div class="pp-card pp-mb-2" style="background:#fef3c7;border:1px solid #f59e0b">
+        <strong style="color:#92400e">⚠️ Chapters without a quiz (${chaptersWithoutQuiz.length}):</strong>
+        <div style="margin-top:0.5rem;font-size:0.9rem">
+          ${chaptersWithoutQuiz.map(ch => `
+            <span style="display:inline-block;background:#fff;padding:0.25rem 0.75rem;border-radius:20px;margin:0.25rem;border:1px solid #fdba74">
+              ${ch.title}
+            </span>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
     ${quizzesHTML || '<div class="pp-admin-empty">No quizzes yet</div>'}
   `
 }
 
 // ============================================================
-// ADMIN BADGES
+// ADMIN BADGES  ✅ FIXED — shows chapter name
 // ============================================================
 async function renderAdminBadges() {
-  const badges = await db.getAllBadges()
+  const [badges, chapters] = await Promise.all([
+    db.getAllBadges(),
+    db.getAllChapters(),
+  ])
+
+  const chapterMap = {}
+  chapters.forEach(ch => { chapterMap[ch.id] = ch })
+
+  const chaptersWithoutBadge = chapters.filter(ch => !badges.some(b => b.chapter_id === ch.id))
+
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Badges</h1>
       <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppAddBadge()">+ Add Badge</button>
     </div>
-    <div class="pp-chapters-grid">
-      ${badges.map(b => `
-        <div class="pp-card pp-text-center">
-          <div style="font-size:3rem;margin-bottom:0.5rem">🏆</div>
-          <strong>${b.name}</strong>
-          <div style="font-size:0.85rem;color:var(--text-muted);margin:0.3rem 0">${b.description || ''}</div>
-          <div style="font-size:0.8rem;color:var(--text-muted)">Chapter: ${b.chapters?.title || '—'}</div>
-          <div class="pp-mt-1">
-            <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppEditBadge('${b.id}')">Edit</button>
-            <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteBadge('${b.id}')">Delete</button>
-          </div>
+
+    ${chaptersWithoutBadge.length > 0 ? `
+      <div class="pp-card pp-mb-2" style="background:#fef3c7;border:1px solid #f59e0b">
+        <strong style="color:#92400e">⚠️ Chapters without a badge (${chaptersWithoutBadge.length}):</strong>
+        <div style="margin-top:0.5rem;font-size:0.9rem">
+          ${chaptersWithoutBadge.map(ch => `
+            <span style="display:inline-block;background:#fff;padding:0.25rem 0.75rem;border-radius:20px;margin:0.25rem;border:1px solid #fdba74">
+              ${ch.title}
+            </span>
+          `).join('')}
         </div>
-      `).join('') || '<div class="pp-admin-empty">No badges yet</div>'}
+      </div>
+    ` : ''}
+
+    <div class="pp-chapters-grid">
+      ${badges.map(b => {
+        const chapter = b.chapters || chapterMap[b.chapter_id]
+        return `
+          <div class="pp-card pp-text-center">
+            <div style="font-size:3rem;margin-bottom:0.5rem">🏆</div>
+            <strong>${b.name}</strong>
+            <div style="font-size:0.85rem;color:var(--text-muted);margin:0.3rem 0">${b.description || ''}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">Chapter: ${chapter?.title || '—'}</div>
+            <div class="pp-mt-1">
+              <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppEditBadge('${b.id}')">Edit</button>
+              <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteBadge('${b.id}')">Delete</button>
+            </div>
+          </div>
+        `
+      }).join('') || '<div class="pp-admin-empty">No badges yet</div>'}
     </div>
   `
 }
@@ -581,7 +674,7 @@ async function renderAdminAttempts() {
               <td>${a.correct_count}/${a.total_questions}</td>
               <td>${a.score_percentage}%</td>
               <td><span class="pp-badge-chip ${a.passed ? 'active' : 'inactive'}">${a.passed ? 'PASS' : 'FAIL'}</span></td>
-              <td>${new Date(a.created_at).toLocaleDateString()}</td>
+              <td>${new Date(a.created_at || a.attempted_at).toLocaleDateString()}</td>
             </tr>
           `).join('') || '<tr><td colspan="6" class="pp-admin-empty">No attempts yet</td></tr>'}
         </tbody>
@@ -642,9 +735,7 @@ async function renderAdminEmails() {
       <div class="pp-card" style="text-align:center;padding:2rem">
         <div style="font-size:3rem;margin-bottom:0.5rem">⚠️</div>
         <h3 style="margin:0 0 0.5rem">Could not load email logs</h3>
-        <p style="color:var(--text-muted);font-size:0.9rem;margin:0.5rem 0">
-          ${fetchError}
-        </p>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin:0.5rem 0">${fetchError}</p>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-top:1rem">
           Make sure the <code>email_logs</code> table exists in your database.
         </p>
@@ -756,18 +847,6 @@ function extractYoutubeId(url) {
 
 // ============================================================
 // 🔥 BULK QUESTION PARSER
-//   Accepts pasted text like:
-//     Q: What is X?
-//     A) option 1
-//     B) option 2
-//     C) option 3
-//     D) option 4
-//     Answer: B
-//
-//   Also supports:
-//     "1." / "Q1." / "Question 1:" prefixes
-//     "A." / "A)" / "(A)" options
-//     "Ans:" / "Answer:" / "Correct:" answers
 // ============================================================
 function parseBulkQuestions(text) {
   const questions = []
@@ -976,7 +1055,7 @@ function attachAdminContentHandlers() {
   }
 
   // ============================================================
-  // CHAPTER CRUD — with YouTube URL
+  // CHAPTER CRUD
   // ============================================================
   window.__ppAddChapter = async (courseId) => {
     const chapters = await db.getAllChapters()
@@ -989,9 +1068,6 @@ function attachAdminContentHandlers() {
         <div class="pp-form-group">
           <label>🎬 YouTube URL (optional)</label>
           <input class="pp-input" type="text" name="youtube_url" placeholder="https://www.youtube.com/watch?v=..." />
-          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">
-            This video will show on the secret code page for this chapter.
-          </div>
         </div>
         <div class="pp-form-group"><label>Sort Order</label><input class="pp-input" type="number" name="sort_order" value="${courseChapters.length + 1}" required /></div>
         <div class="pp-form-group"><label><input type="checkbox" name="is_active" checked /> Active</label></div>
@@ -1262,7 +1338,7 @@ function attachAdminContentHandlers() {
   }
 
   // ============================================================
-  // QUESTION CRUD — with BULK IMPORT
+  // QUESTION CRUD
   // ============================================================
   window.__ppManageQuestions = async (quizId) => {
     const [questions, quizzes] = await Promise.all([db.getAllQuestions(quizId), db.getAllQuizzes()])
@@ -1329,7 +1405,7 @@ function attachAdminContentHandlers() {
   }
 
   // ------------------------------------------------------------
-  // 📋 BULK IMPORT MODAL
+  // 📋 BULK IMPORT
   // ------------------------------------------------------------
   window.__ppBulkImport = (quizId) => {
     document.getElementById('pp-modal-overlay')?.remove()
@@ -1344,13 +1420,6 @@ A) Joule
 B) Newton
 C) Watt
 D) Pascal
-Answer: B
-
-Q: Which instrument measures temperature?
-A) Barometer
-B) Thermometer
-C) Hygrometer
-D) Ammeter
 Answer: B</pre>
         Also works with <code>1.</code>, <code>Q1:</code>, <code>A.</code>, <code>Ans:</code>, etc.
       </div>
