@@ -22,6 +22,10 @@ import {
   renderVerify,
   attachVerify,
   studentLogout,
+  // 🎓 NEW — Final combined quiz
+  renderFinalQuiz,
+  attachFinalQuiz,
+  renderFinalResult,
 } from './student.js'
 import {
   renderAdminLogin,
@@ -35,6 +39,9 @@ import { getStudentById } from './data.js'
 // Expose navigation globally
 window.__ppNav = (view, data = {}) => navigate(view, data)
 
+// ============================================================
+// RENDER
+// ============================================================
 async function render() {
   const app = document.querySelector('#app')
   if (!app) return
@@ -65,9 +72,11 @@ async function render() {
   }
 }
 
+// ============================================================
+// STUDENT ROUTES
+// ============================================================
 async function renderStudentRoute() {
-  // NOTE: No auto-login from localStorage for students anymore.
-  // Student session is purely in-memory (see student.js).
+  // No auto-login from localStorage for students — session is in-memory only
 
   if (state.view === 'certificate' && !state.certificate) {
     const route = getRoute()
@@ -85,18 +94,32 @@ async function renderStudentRoute() {
     case 'landing':
       setTimeout(() => attachOnboarding(), 0)
       return renderLanding()
+
     case 'chapters':
       return await renderChapters()
+
     case 'code':
-      return renderCodeEntry()
+      return await renderCodeEntry()
+
     case 'quiz':
       return await renderQuiz()
+
     case 'result':
       return await renderResult()
+
     case 'badge':
       return renderBadge()
+
     case 'certificate':
       return await renderCertificate()
+
+    // 🎓 NEW — Final combined quiz routes
+    case 'final-quiz':
+      return await renderFinalQuiz()
+
+    case 'final-result':
+      return await renderFinalResult()
+
     default:
       state.view = 'landing'
       setTimeout(() => attachOnboarding(), 0)
@@ -104,6 +127,9 @@ async function renderStudentRoute() {
   }
 }
 
+// ============================================================
+// ADMIN ROUTE
+// ============================================================
 async function renderAdminRoute() {
   if (!state.adminAuth) {
     setTimeout(() => attachAdminLogin(), 0)
@@ -113,6 +139,9 @@ async function renderAdminRoute() {
   return renderAdminPanel()
 }
 
+// ============================================================
+// STUDENT HANDLERS (attaches per-view event listeners)
+// ============================================================
 function attachStudentHandlers() {
   if (state.view === 'landing') {
     attachOnboarding()
@@ -120,11 +149,13 @@ function attachStudentHandlers() {
     attachCodeEntry()
   } else if (state.view === 'quiz') {
     attachQuiz()
+  } else if (state.view === 'final-quiz') {
+    attachFinalQuiz()
   }
 }
 
 // ============================================================
-// HEADER (no Dashboard / Achievements links anymore)
+// HEADER
 // ============================================================
 function renderHeader() {
   const route = getRoute()
@@ -163,7 +194,6 @@ function renderHeader() {
 
 window.__ppGoHome = () => {
   window.location.hash = ''
-  // If a student is active, go to chapters; else landing
   state.view = state.student ? 'chapters' : 'landing'
   fullRender()
 }
@@ -171,6 +201,9 @@ window.__ppGoHome = () => {
 window.__ppStudentLogout = () => studentLogout()
 window.__ppAdminLogout = () => adminLogout()
 
+// ============================================================
+// FULL RENDER (header + body)
+// ============================================================
 async function fullRender() {
   const headerEl = document.querySelector('#pp-header')
   if (headerEl) {
@@ -183,10 +216,13 @@ setRender(async () => {
   await fullRender()
 })
 
+// ============================================================
+// INIT
+// ============================================================
 async function init() {
   console.log('🚀 Initializing app...')
 
-  // Admin auth check (Supabase session) — still needed
+  // Admin auth check (Supabase session)
   const { data: { session } } = await supabase.auth.getSession()
   if (session) {
     const { data: profile } = await supabase
@@ -199,7 +235,7 @@ async function init() {
     }
   }
 
-  // NOTE: Student auto-login REMOVED (no persistence wanted)
+  // Student auto-login is disabled (no persistence)
 
   supabase.auth.onAuthStateChange((event, session) => {
     (async () => {
