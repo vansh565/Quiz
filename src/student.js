@@ -68,7 +68,7 @@ export function renderLanding() {
             </div>
 
             <p class="pp-landing-desc">
-              Learn physics the fun way — watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate.
+             Learn. Understand. Master — watch videos, unlock secret codes, take quizzes, earn badges, and get your certificate.
             </p>
 
             <div class="pp-features">
