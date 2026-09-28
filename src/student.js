@@ -886,7 +886,7 @@ export function renderBadge() {
   return `
     <div class="pp-container">
       <div class="pp-card pp-badge-celebration">
-        <img src="/logo.png" alt="Professor Prabh" style="width:88px;height:88px;object-fit:contain;margin-bottom:0.75rem" />
+        <img class="pp-badge-brand-logo" src="/logo.png" alt="Professor Prabh" />
         <div class="pp-badge-medal">🏆</div>
         <div class="pp-badge-name">${badge.name}</div>
         <div class="pp-badge-desc">${badge.description || ''}</div>
