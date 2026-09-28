@@ -146,7 +146,7 @@ function renderOnboardingForm() {
 
       <div class="pp-onboarding-foot">
         <span>🔒</span>
-        <span>Your progress is saved only for this session</span>
+        <span>Your learning activity is shared with your teacher</span>
       </div>
     </div>
   `
@@ -711,6 +711,20 @@ export function attachQuiz() {
   }
 }
 
+function buildAnswerDetails(questions, answers) {
+  return questions.map(question => {
+    const selected = answers[question.id] || null
+    return {
+      question: question.question_text,
+      selected_answer: selected,
+      selected_text: selected ? question[`option_${selected}`] : 'Not answered',
+      correct_answer: question.correct_answer,
+      correct_text: question[`option_${question.correct_answer}`],
+      is_correct: selected === question.correct_answer,
+    }
+  })
+}
+
 async function submitQuiz() {
   const quiz = state.currentQuiz
   const ch = state.currentChapter
@@ -749,6 +763,7 @@ async function submitQuiz() {
     correct_count: correct,
     wrong_count: wrong,
     total_questions: total,
+    answer_details: buildAnswerDetails(quizQuestions, answers),
   })
 
   const result = {
@@ -1082,6 +1097,7 @@ async function submitFinalQuiz() {
     correct_count: correct,
     wrong_count: wrong,
     total_questions: total,
+    answer_details: buildAnswerDetails(finalQuizQuestions, answers),
   })
 
   const result = {
