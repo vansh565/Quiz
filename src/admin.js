@@ -329,8 +329,7 @@ async function loadAdminContent() {
 // ADMIN DASHBOARD
 // ============================================================
 async function renderAdminDashboard() {
-  const [students, courses, chapters, quizzes, questions, certs, attempts, emails, activity] = await Promise.all([
-    db.getAllStudents().catch(() => []),
+  const [courses, chapters, quizzes, questions, certs, attempts, emails, activity] = await Promise.all([
     db.getAllCourses().catch(() => []),
     db.getAllChapters().catch(() => []),
     db.getAllQuizzes().catch(() => []),
@@ -338,13 +337,14 @@ async function renderAdminDashboard() {
     db.getAllCertificates().catch(() => []),
     db.getAllAttempts().catch(() => []),
     db.getAllEmailLogs().catch(() => []),
-    db.getRecentStudentActivity(10).catch(() => []),
+    db.getRecentStudentActivity(1000).catch(() => []),
   ])
+  const studentSessions = groupStudentSessions(activity)
 
   return `
     <h1 class="pp-admin-page-title">Dashboard</h1>
     <div class="pp-stats-grid">
-      <div class="pp-stat-card"><div class="val">${students.length}</div><div class="label">Students</div></div>
+      <div class="pp-stat-card"><div class="val">${studentSessions.length}</div><div class="label">Student Sessions</div></div>
       <div class="pp-stat-card"><div class="val">${courses.length}</div><div class="label">Courses</div></div>
       <div class="pp-stat-card"><div class="val">${chapters.length}</div><div class="label">Chapters</div></div>
       <div class="pp-stat-card"><div class="val">${questions.length}</div><div class="label">Questions</div></div>
@@ -363,13 +363,11 @@ async function renderAdminDashboard() {
       ${renderStudentActivityTable(activity)}
     </div>
     <div class="pp-card pp-mt-2">
-      <h3>Recent Students</h3>
+      <h3>Recent Student Sessions</h3>
       <table class="pp-admin-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
+        <thead><tr><th>Name</th><th>Class</th><th>Joined</th><th>Last Active</th><th>Attempts</th><th>Pass / Fail</th><th>Certificate</th></tr></thead>
         <tbody>
-          ${students.slice(0, 5).map(s => `
-            <tr><td>${s.name}</td><td>${s.email || '—'}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>
-          `).join('') || '<tr><td colspan="4" class="pp-admin-empty">No students yet</td></tr>'}
+          ${studentSessions.slice(0, 5).map(s => renderStudentSessionRow(s)).join('') || '<tr><td colspan="7" class="pp-admin-empty">No student activity recorded yet</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -409,13 +407,23 @@ function renderStudentActivityTable(activity) {
       ? item.passed ? 'PASS' : 'FAIL'
       : item.event_type === 'certificate_awarded' ? 'AWARDED' : '—'
     const outcomeClass = item.passed || item.event_type === 'certificate_awarded' ? 'active' : 'inactive'
+    const answerDetails = Array.isArray(item.answer_details) && item.answer_details.length
+      ? `<details><summary>${item.answer_details.length} answer details</summary><ol style="padding-left:1.25rem;margin-top:0.5rem">${item.answer_details.map(answer => `
+          <li style="margin-bottom:0.6rem">
+            <strong>${escapeActivityText(answer.question)}</strong><br>
+            Your answer: ${escapeActivityText(answer.selected_text || 'Not answered')}<br>
+            Correct answer: ${escapeActivityText(answer.correct_text || answer.correct_answer || '—')}
+            <span class="pp-badge-chip ${answer.is_correct ? 'active' : 'inactive'}">${answer.is_correct ? 'Correct' : 'Incorrect'}</span>
+          </li>
+        `).join('')}</ol></details>`
+      : ''
 
     return `
       <tr>
         <td><strong>${escapeActivityText(item.student_name)}</strong></td>
         <td>${escapeActivityText(item.class_level || '—')}</td>
         <td>${eventLabel}</td>
-        <td>${escapeActivityText(detail || '—')}</td>
+        <td>${escapeActivityText(detail || '—')}${answerDetails}</td>
         <td><span class="pp-badge-chip ${outcomeClass}">${outcome}</span></td>
         <td>${item.score_percentage == null ? '—' : `${escapeActivityText(item.score_percentage)}%`}</td>
         <td>${item.total_questions == null ? '—' : `${escapeActivityText(item.correct_count ?? 0)} / ${escapeActivityText(item.wrong_count ?? 0)} / ${escapeActivityText(item.total_questions)}`}</td>
@@ -439,28 +447,81 @@ function renderStudentActivityTable(activity) {
 // ============================================================
 let studentSearch = ''
 async function renderAdminStudents() {
-  const students = await db.getAllStudents(studentSearch)
+  const activity = await db.getRecentStudentActivity(1000)
+  const sessions = groupStudentSessions(activity).filter(student =>
+    !studentSearch || student.name.toLowerCase().includes(studentSearch.toLowerCase())
+  )
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Students</h1>
       <input class="pp-search-input" type="text" placeholder="Search by name..." value="${studentSearch}" id="pp-student-search" />
     </div>
     <div class="pp-card">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem">Each row is one student visit. Returning students appear as new sessions.</p>
       <table class="pp-admin-table">
-        <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th><th>Class</th><th>Joined</th><th>Last Active</th><th>Attempts</th><th>Pass / Fail</th><th>Certificate</th></tr></thead>
         <tbody>
-          ${students.map((s, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td><strong>${s.name}</strong></td>
-              <td>${s.email || '—'}</td>
-              <td>${s.class_level}</td>
-              <td>${new Date(s.created_at).toLocaleString()}</td>
-            </tr>
-          `).join('') || '<tr><td colspan="5" class="pp-admin-empty">No students found</td></tr>'}
+          ${sessions.map((student, index) => renderStudentSessionRow(student, index + 1)).join('') || '<tr><td colspan="8" class="pp-admin-empty">No student activity found</td></tr>'}
         </tbody>
       </table>
     </div>
+  `
+}
+
+function groupStudentSessions(activity) {
+  const sessions = new Map()
+  activity.forEach(item => {
+    const sessionId = item.session_id || item.id
+    let student = sessions.get(sessionId)
+    if (!student) {
+      student = {
+        name: item.student_name || 'Student',
+        classLevel: item.class_level || '—',
+        joinedAt: item.created_at,
+        lastActive: item.created_at,
+        attempts: 0,
+        passed: 0,
+        failed: 0,
+        certificateNumbers: [],
+      }
+      sessions.set(sessionId, student)
+    }
+
+    if (item.created_at) {
+      if (!student.joinedAt || item.created_at < student.joinedAt) student.joinedAt = item.created_at
+      if (!student.lastActive || item.created_at > student.lastActive) student.lastActive = item.created_at
+    }
+    if (item.event_type === 'student_started') student.joinedAt = item.created_at
+    if (item.event_type === 'quiz_attempt') {
+      student.attempts++
+      if (item.passed) student.passed++
+      else student.failed++
+    }
+    if (item.event_type === 'certificate_awarded' && item.certificate_number) {
+      student.certificateNumbers.push(item.certificate_number)
+    }
+  })
+
+  return [...sessions.values()].sort((first, second) =>
+    new Date(second.lastActive || 0) - new Date(first.lastActive || 0)
+  )
+}
+
+function renderStudentSessionRow(student, number = null) {
+  const certificate = student.certificateNumbers.length
+    ? student.certificateNumbers.map(escapeActivityText).join(', ')
+    : '—'
+  return `
+    <tr>
+      ${number === null ? '' : `<td>${number}</td>`}
+      <td><strong>${escapeActivityText(student.name)}</strong></td>
+      <td>${escapeActivityText(student.classLevel)}</td>
+      <td>${student.joinedAt ? new Date(student.joinedAt).toLocaleString() : '—'}</td>
+      <td>${student.lastActive ? new Date(student.lastActive).toLocaleString() : '—'}</td>
+      <td>${student.attempts}</td>
+      <td>${student.passed} / ${student.failed}</td>
+      <td>${certificate}</td>
+    </tr>
   `
 }
 
