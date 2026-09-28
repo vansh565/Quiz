@@ -447,6 +447,35 @@ export async function getAllAttempts() {
 }
 
 // ============================================================
+// STUDENT ACTIVITY FEED
+// ============================================================
+export async function recordStudentActivity(activity) {
+  try {
+    const { error } = await supabase.from('student_activity').insert(activity)
+    if (error) throw error
+    return true
+  } catch (error) {
+    console.warn('recordStudentActivity error:', error.message || error)
+    return false
+  }
+}
+
+export async function getRecentStudentActivity(limit = 100) {
+  try {
+    const { data, error } = await supabase
+      .from('student_activity')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return data || []
+  } catch (error) {
+    console.error('getRecentStudentActivity error:', error.message || error)
+    return []
+  }
+}
+
+// ============================================================
 // CHAPTER PROGRESS
 // ============================================================
 export async function getStudentProgress(studentId) {
@@ -962,5 +991,53 @@ export async function sendCertificateEmail(student, certificate) {
       err.message
     )
     return { success: false, error: err.message }
+  }
+}
+// ============================================================
+// GAMES
+// ============================================================
+export async function getAllGames() {
+  try {
+    const { data, error } = await supabase
+      .from('games')
+      .select('id, title, description, icon, is_active, sort_order, created_at')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data || []
+  } catch (error) {
+    console.error('getAllGames error:', error)
+    return []
+  }
+}
+
+export async function getActiveGames() {
+  try {
+    const { data, error } = await supabase
+      .from('games')
+      .select('id, title, description, icon, is_active, sort_order')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data || []
+  } catch (error) {
+    console.error('getActiveGames error:', error)
+    return []
+  }
+}
+
+export async function getGameById(id) {
+  try {
+    const { data, error } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    return data
+  } catch (error) {
+    console.error('getGameById error:', error)
+    return null
   }
 }
