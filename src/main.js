@@ -26,6 +26,8 @@ import {
   renderFinalQuiz,
   attachFinalQuiz,
   renderFinalResult,
+  renderGames,
+  renderGamePlay,
 } from './student.js'
 import {
   renderAdminLogin,
@@ -119,6 +121,12 @@ async function renderStudentRoute() {
 
     case 'final-result':
       return await renderFinalResult()
+
+    case 'games':
+      return await renderGames()
+
+    case 'game-play':
+      return renderGamePlay()
 
     default:
       state.view = 'landing'
