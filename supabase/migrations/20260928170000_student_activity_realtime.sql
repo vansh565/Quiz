@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.student_activity (
   event_type text NOT NULL CHECK (event_type IN ('student_started', 'quiz_attempt', 'certificate_awarded')),
   quiz_title text,
   chapter_title text,
+  answer_details jsonb NOT NULL DEFAULT '[]'::jsonb,
   passed boolean,
   score_percentage numeric CHECK (score_percentage IS NULL OR score_percentage BETWEEN 0 AND 100),
   correct_count integer,
@@ -14,6 +15,9 @@ CREATE TABLE IF NOT EXISTS public.student_activity (
   certificate_number text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.student_activity
+  ADD COLUMN IF NOT EXISTS answer_details jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_student_activity_created_at
   ON public.student_activity (created_at DESC);
