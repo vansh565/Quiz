@@ -146,7 +146,7 @@ export function attachAdminLogin() {
           .maybeSingle()
 
         if (profErr || !profile) {
-          await supabase.auth.signOut()
+          await supabase.auth.signOut({ scope: 'local' })
           throw new Error('❌ Invalid credentials or secret key. Access denied.')
         }
 
@@ -230,7 +230,7 @@ export function attachAdminLogin() {
 // ADMIN LOGOUT
 // ============================================================
 export async function adminLogout() {
-  await supabase.auth.signOut()
+  await supabase.auth.signOut({ scope: 'local' })
   state.adminAuth = false
   state.adminSecretKey = null
   state.adminView = 'dashboard'
@@ -248,6 +248,8 @@ const NAV_ITEMS = [
   { id: 'codes', label: 'Secret Codes', icon: '🔐' },
   { id: 'quizzes', label: 'Quizzes & Questions', icon: '📝' },
   { id: 'badges', label: 'Badges', icon: '🏆' },
+  { id: 'games', label: 'Games', icon: '🎮' },
+  { id: 'activity', label: 'Student Activity', icon: '🕒' },
   { id: 'attempts', label: 'Quiz Attempts', icon: '📋' },
   { id: 'certificates', label: 'Certificates', icon: '📜' },
   { id: 'emails', label: 'Email Logs', icon: '📧' },
@@ -278,7 +280,19 @@ export function attachAdminPanel() {
     document.querySelectorAll('.pp-admin-nav-item').forEach(el => el.classList.remove('active'))
     render()
   }
+  subscribeToStudentActivity()
   loadAdminContent()
+}
+
+let studentActivityChannel = null
+function subscribeToStudentActivity() {
+  if (studentActivityChannel) return
+  studentActivityChannel = supabase
+    .channel('admin-student-activity')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'student_activity' }, () => {
+      if (state.adminAuth && ['dashboard', 'activity'].includes(state.adminView)) loadAdminContent()
+    })
+    .subscribe()
 }
 
 async function loadAdminContent() {
@@ -296,6 +310,8 @@ async function loadAdminContent() {
       case 'codes': html = await renderAdminCodes(); break
       case 'quizzes': html = await renderAdminQuizzes(); break
       case 'badges': html = await renderAdminBadges(); break
+      case 'games': html = await renderAdminGames(); break   
+      case 'activity': html = await renderAdminStudentActivity(); break
       case 'attempts': html = await renderAdminAttempts(); break
       case 'certificates': html = await renderAdminCertificates(); break
       case 'emails': html = await renderAdminEmails(); break
@@ -313,7 +329,7 @@ async function loadAdminContent() {
 // ADMIN DASHBOARD
 // ============================================================
 async function renderAdminDashboard() {
-  const [students, courses, chapters, quizzes, questions, certs, attempts, emails] = await Promise.all([
+  const [students, courses, chapters, quizzes, questions, certs, attempts, emails, activity] = await Promise.all([
     db.getAllStudents().catch(() => []),
     db.getAllCourses().catch(() => []),
     db.getAllChapters().catch(() => []),
@@ -322,6 +338,7 @@ async function renderAdminDashboard() {
     db.getAllCertificates().catch(() => []),
     db.getAllAttempts().catch(() => []),
     db.getAllEmailLogs().catch(() => []),
+    db.getRecentStudentActivity(10).catch(() => []),
   ])
 
   return `
@@ -339,6 +356,13 @@ async function renderAdminDashboard() {
       <div class="pp-stat-card"><div class="val">${emails.length}</div><div class="label">Emails Sent</div></div>
     </div>
     <div class="pp-card pp-mt-2">
+      <div class="pp-flex pp-justify-between pp-items-center">
+        <h3>Recent Student Activity</h3>
+        <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppAdminNav('activity')">View all</button>
+      </div>
+      ${renderStudentActivityTable(activity)}
+    </div>
+    <div class="pp-card pp-mt-2">
       <h3>Recent Students</h3>
       <table class="pp-admin-table">
         <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Joined</th></tr></thead>
@@ -347,6 +371,64 @@ async function renderAdminDashboard() {
             <tr><td>${s.name}</td><td>${s.email || '—'}</td><td>${s.class_level}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>
           `).join('') || '<tr><td colspan="4" class="pp-admin-empty">No students yet</td></tr>'}
         </tbody>
+      </table>
+    </div>
+  `
+}
+
+async function renderAdminStudentActivity() {
+  const activity = await db.getRecentStudentActivity(100)
+  return `
+    <div class="pp-admin-toolbar">
+      <h1 class="pp-admin-page-title" style="margin:0">Student Activity</h1>
+      <span class="pp-badge-chip active">Live updates on</span>
+    </div>
+    <div class="pp-card">
+      ${renderStudentActivityTable(activity)}
+    </div>
+  `
+}
+
+function escapeActivityText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char])
+}
+
+function renderStudentActivityTable(activity) {
+  const rows = activity.map(item => {
+    const eventLabel = item.event_type === 'student_started'
+      ? 'Started learning'
+      : item.event_type === 'certificate_awarded'
+        ? 'Certificate awarded'
+        : 'Quiz attempt'
+    const detail = item.event_type === 'certificate_awarded'
+      ? `Certificate ${item.certificate_number || ''}`
+      : [item.quiz_title, item.chapter_title].filter(Boolean).join(' · ')
+    const outcome = item.event_type === 'quiz_attempt'
+      ? item.passed ? 'PASS' : 'FAIL'
+      : item.event_type === 'certificate_awarded' ? 'AWARDED' : '—'
+    const outcomeClass = item.passed || item.event_type === 'certificate_awarded' ? 'active' : 'inactive'
+
+    return `
+      <tr>
+        <td><strong>${escapeActivityText(item.student_name)}</strong></td>
+        <td>${escapeActivityText(item.class_level || '—')}</td>
+        <td>${eventLabel}</td>
+        <td>${escapeActivityText(detail || '—')}</td>
+        <td><span class="pp-badge-chip ${outcomeClass}">${outcome}</span></td>
+        <td>${item.score_percentage == null ? '—' : `${escapeActivityText(item.score_percentage)}%`}</td>
+        <td>${item.total_questions == null ? '—' : `${escapeActivityText(item.correct_count ?? 0)} / ${escapeActivityText(item.wrong_count ?? 0)} / ${escapeActivityText(item.total_questions)}`}</td>
+        <td>${item.created_at ? new Date(item.created_at).toLocaleString() : '—'}</td>
+      </tr>
+    `
+  }).join('')
+
+  return `
+    <div style="overflow-x:auto">
+      <table class="pp-admin-table">
+        <thead><tr><th>Student</th><th>Class</th><th>Activity</th><th>Details</th><th>Result</th><th>Score</th><th>Correct / Wrong / Total</th><th>Date & Time</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" class="pp-admin-empty">No student activity recorded yet</td></tr>'}</tbody>
       </table>
     </div>
   `
@@ -941,6 +1023,8 @@ function parseBulkQuestions(text) {
 // ADMIN CONTENT HANDLERS
 // ============================================================
 function attachAdminContentHandlers() {
+  attachGameHandlers()
+
   const studentSearchEl = document.getElementById('pp-student-search')
   if (studentSearchEl) {
     studentSearchEl.addEventListener('input', (e) => {
@@ -1601,4 +1685,252 @@ Answer: B</pre>
     try { await db.adminDelete('badges', id); showToast('Badge deleted!', 'success'); loadAdminContent() }
     catch (err) { showToast('Error: ' + err.message, 'error') }
   }
+}
+// ============================================================
+// ADMIN GAMES
+// ============================================================
+async function renderAdminGames() {
+  let games = []
+  let fetchError = null
+
+  try {
+    games = await db.getAllGames()
+    if (!Array.isArray(games)) games = []
+  } catch (err) {
+    console.error('Games fetch error:', err)
+    fetchError = err.message || String(err)
+  }
+
+  if (fetchError) {
+    return `
+      <h1 class="pp-admin-page-title">Games</h1>
+      <div class="pp-card" style="text-align:center;padding:2rem">
+        <div style="font-size:3rem;margin-bottom:0.5rem">⚠️</div>
+        <h3 style="margin:0 0 0.5rem">Could not load games</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin:0.5rem 0">${fetchError}</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:1rem">
+          Make sure the <code>games</code> table exists.
+        </p>
+      </div>
+    `
+  }
+
+  return `
+    <div class="pp-admin-toolbar">
+      <h1 class="pp-admin-page-title" style="margin:0">Games</h1>
+      <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppAddGame()">+ Upload Game</button>
+    </div>
+
+    <div class="pp-alert info" style="font-size:0.85rem;margin-bottom:1rem">
+      🎮 Upload any HTML game file. Students will see a "Play Games" button on their dashboard automatically.
+    </div>
+
+    ${games.length === 0
+      ? `<div class="pp-card" style="text-align:center;padding:3rem">
+          <div style="font-size:3rem;margin-bottom:0.5rem">🎮</div>
+          <h3 style="margin:0 0 0.5rem">No games yet</h3>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin:0 0 1rem">
+            Upload your first HTML game — it will appear on every student's dashboard.
+          </p>
+          <button class="pp-btn pp-btn-primary" onclick="window.__ppAddGame()">🎮 Upload Your First Game</button>
+        </div>`
+      : `<div class="pp-chapters-grid">
+          ${games.map(g => `
+            <div class="pp-card pp-text-center">
+              <div style="font-size:3rem;margin-bottom:0.5rem">${g.icon || '🎮'}</div>
+              <strong>${g.title}</strong>
+              <div style="font-size:0.85rem;color:var(--text-muted);margin:0.3rem 0">
+                ${g.description || ''}
+              </div>
+              <div style="margin:0.5rem 0">
+                <span class="pp-badge-chip ${g.is_active ? 'active' : 'inactive'}">
+                  ${g.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              <div class="pp-mt-1 pp-flex pp-gap-1" style="justify-content:center;flex-wrap:wrap">
+                <button class="pp-btn pp-btn-primary pp-btn-sm" onclick="window.__ppPreviewGame('${g.id}')">👁 Preview</button>
+                <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppEditGame('${g.id}')">Edit</button>
+                <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppToggleGame('${g.id}', ${!g.is_active})">${g.is_active ? 'Disable' : 'Enable'}</button>
+                <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppDeleteGame('${g.id}')">Delete</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>`
+    }
+  `
+}
+
+function attachGameHandlers() {
+  window.__ppAddGame = () => openGameForm()
+
+  window.__ppEditGame = async (id) => {
+    const game = await db.getGameById(id)
+    if (!game) {
+      showToast('Could not load game.', 'error')
+      return
+    }
+    openGameForm(game)
+  }
+
+  window.__ppToggleGame = async (id, isActive) => {
+    try {
+      await db.adminUpdate('games', id, { is_active: isActive })
+      showToast(`Game ${isActive ? 'enabled' : 'disabled'}!`, 'success')
+      loadAdminContent()
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error')
+    }
+  }
+
+  window.__ppDeleteGame = async (id) => {
+    if (!confirm('Delete this game? Students will no longer be able to play it.')) return
+    try {
+      await db.adminDelete('games', id)
+      showToast('Game deleted!', 'success')
+      loadAdminContent()
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error')
+    }
+  }
+
+  window.__ppPreviewGame = async (id) => {
+    const game = await db.getGameById(id)
+    if (!game) {
+      showToast('Could not load game.', 'error')
+      return
+    }
+    showModal(`Preview: ${game.title}`, '<iframe id="pp-game-preview" title="Game preview" style="width:100%;height:65vh;border:0;background:#fff"></iframe>')
+    const frame = document.getElementById('pp-game-preview')
+    frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals')
+    frame.srcdoc = game.html_content || ''
+  }
+}
+
+async function refreshAndVerifyAdminSession() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !sessionData.session) {
+    await supabase.auth.signOut({ scope: 'local' })
+    state.adminAuth = false
+    state.adminSecretKey = null
+    render()
+    throw new Error('Your admin session has expired. Sign in to the admin panel again.')
+  }
+
+  let user = null
+  const { data: userData, error: userError } = await supabase.auth.getUser()
+  if (!userError && userData.user) {
+    user = userData.user
+  } else {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+    if (refreshError || !refreshData.session) {
+      await supabase.auth.signOut({ scope: 'local' })
+      state.adminAuth = false
+      const reason = refreshError?.message || userError?.message || 'No active session'
+      throw new Error(`Admin session could not be refreshed (${reason}). Sign in to the admin panel again.`)
+    }
+    user = refreshData.session.user
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('admin_profiles')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError) throw new Error('Could not verify admin access: ' + profileError.message)
+  if (!profile) {
+    await supabase.auth.signOut({ scope: 'local' })
+    state.adminAuth = false
+    throw new Error('This account has no admin profile. Sign in with an admin account.')
+  }
+}
+
+function openGameForm(game = null) {
+  const editing = Boolean(game)
+  showModal(editing ? 'Edit Game' : 'Upload Game', `
+    <form id="pp-game-form">
+      <div class="pp-form-group">
+        <label class="pp-label">Game Title</label>
+        <input class="pp-input" type="text" name="title" maxlength="100" placeholder="Uses the HTML title or filename if blank" value="${game?.title || ''}" />
+      </div>
+      <div class="pp-form-group">
+        <label class="pp-label">Description</label>
+        <textarea class="pp-textarea" name="description" maxlength="500" placeholder="A short description for students">${game?.description || ''}</textarea>
+      </div>
+      <div class="pp-form-group">
+        <label class="pp-label">Icon (emoji)</label>
+        <input class="pp-input" type="text" name="icon" maxlength="8" value="${game?.icon || '🎮'}" />
+      </div>
+      <div class="pp-form-group">
+        <label class="pp-label">${editing ? 'Replace HTML Game File (optional)' : 'HTML Game File'}</label>
+        <input class="pp-input" type="file" name="html_file" accept=".html,text/html" ${editing ? '' : 'required'} />
+        ${editing ? '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem">Leave empty to keep the current game file.</div>' : ''}
+      </div>
+      <div class="pp-form-group">
+        <label class="pp-label">Display order</label>
+        <input class="pp-input" type="number" name="sort_order" min="0" value="${game?.sort_order ?? 0}" />
+      </div>
+      <div class="pp-form-group">
+        <label><input type="checkbox" name="is_active" ${game?.is_active === false ? '' : 'checked'} /> Show to students</label>
+      </div>
+      <div id="pp-game-form-error" class="pp-error-text pp-hidden"></div>
+      <div class="pp-modal-footer"><button type="submit" class="pp-btn pp-btn-primary">${editing ? 'Save Game' : 'Upload Game'}</button></div>
+    </form>
+  `)
+
+  const form = document.getElementById('pp-game-form')
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    const submitButton = form.querySelector('button[type="submit"]')
+    const errorElement = document.getElementById('pp-game-form-error')
+    const file = form.elements.html_file.files[0]
+    submitButton.disabled = true
+    errorElement.classList.add('pp-hidden')
+
+    try {
+      await refreshAndVerifyAdminSession()
+
+      let htmlContent = game?.html_content || ''
+      if (file) {
+        if (!file.name.toLowerCase().endsWith('.html') && file.type !== 'text/html') {
+          throw new Error('Choose an .html file.')
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          throw new Error('HTML game files must be 2 MB or smaller.')
+        }
+        htmlContent = await file.text()
+        if (!htmlContent.trim()) throw new Error('The selected HTML file is empty.')
+      }
+
+      const formData = new FormData(form)
+      const documentTitle = file
+        ? new DOMParser().parseFromString(htmlContent, 'text/html').title.trim()
+        : ''
+      const fileTitle = file ? file.name.replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim() : ''
+      const title = formData.get('title').trim() || game?.title || documentTitle || fileTitle
+      if (!title) throw new Error('Add a title or upload a file with a filename.')
+      const payload = {
+        title: title.slice(0, 100),
+        description: formData.get('description').trim(),
+        icon: formData.get('icon').trim() || '🎮',
+        sort_order: Number(formData.get('sort_order')) || 0,
+        is_active: formData.has('is_active'),
+        html_content: htmlContent,
+      }
+
+      if (editing) await db.adminUpdate('games', game.id, payload)
+      else await db.adminInsert('games', payload)
+
+      document.getElementById('pp-modal-overlay').remove()
+      showToast(editing ? 'Game updated!' : 'Game uploaded!', 'success')
+      loadAdminContent()
+    } catch (err) {
+      const message = err.message || 'Could not save game.'
+      errorElement.textContent = /row-level security/i.test(message)
+        ? 'Supabase blocked this write. Apply the latest Games RLS migration, then sign in again.'
+        : message
+      errorElement.classList.remove('pp-hidden')
+      submitButton.disabled = false
+    }
+  })
 }
