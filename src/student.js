@@ -28,8 +28,11 @@ const FINAL_QUIZ_PASS_PCT = 70
 // ============================================================
 const session = {
   student: null,
+  activitySessionId: null,
   course: null,
   chapters: [],
+  games: [],
+  currentGame: null,
   completedChapters: [],
   badges: [],
   attempts: [],
@@ -129,12 +132,9 @@ function renderOnboardingForm() {
         </div>
 
         <div class="pp-form-group">
-          <label class="pp-label">Class</label>
-          <select class="pp-select" name="class_level" required>
-            <option value="Class 7" selected>Class 7</option>
-            <option value="Class 6">Class 6</option>
-            <option value="Class 8">Class 8</option>
-          </select>
+          <label class="pp-label">Learning group</label>
+          <div class="pp-input" style="display:flex;align-items:center;margin:0">Classes 6-8 · Shared Physics course</div>
+          <input type="hidden" name="class_level" value="Classes 6-8" />
         </div>
 
         <div id="pp-onboarding-error" class="pp-error-text pp-hidden"></div>
@@ -168,6 +168,7 @@ export function attachOnboarding() {
 
     try {
       session.student = { name, class_level }
+      session.activitySessionId = crypto.randomUUID()
       session.completedChapters = []
       session.badges = []
       session.attempts = []
@@ -176,12 +177,13 @@ export function attachOnboarding() {
       session.finalQuizResult = null
 
       const courses = await db.getActiveCourses()
-      const course = courses.find(c => c.class_level === class_level) || courses[0]
+      const course = courses.find(c => c.class_level === 'Class 7') || courses[0]
       if (!course) {
         throw new Error('No courses available for this class yet.')
       }
-      session.course = course
+      session.course = { ...course, name: 'Classes 6-8 Physics' }
       session.chapters = await db.getChaptersByCourse(course.id)
+      session.games = await db.getActiveGames()
 
       console.log('📚 Loaded chapters:', session.chapters)
 
@@ -193,6 +195,13 @@ export function attachOnboarding() {
       } catch (e) {
         console.warn('Could not preload videos:', e)
       }
+
+      await db.recordStudentActivity({
+        session_id: session.activitySessionId,
+        student_name: name,
+        class_level,
+        event_type: 'student_started',
+      })
 
       navigate('chapters')
     } catch (err) {
@@ -213,6 +222,8 @@ export async function renderChapters() {
     return ''
   }
 
+  session.games = await db.getActiveGames()
+
   const chapters = session.chapters
   const completed = session.completedChapters
   const allComplete = chapters.length > 0 && completed.length === chapters.length
@@ -232,7 +243,7 @@ export async function renderChapters() {
 
     return `
       <div class="pp-chapter-card ${isCompleted ? 'completed' : ''}" onclick="window.__ppOpenChapter('${ch.id}')">
-        ${badge ? '<div class="pp-chapter-badge-tag">🏆</div>' : ''}
+        ${badge ? '<div class="pp-chapter-badge-tag"><img src="/logo.png" alt="Professor Prabh badge" /></div>' : ''}
         <div class="pp-chapter-icon ${iconClass}">${icon}</div>
         <div class="pp-chapter-title">${ch.title}</div>
         <div class="pp-chapter-desc">${ch.description || ''}</div>
@@ -287,6 +298,20 @@ export async function renderChapters() {
     }
   }
 
+  const hasGames = session.games.length > 0
+  const gamesSection = `
+    <div class="pp-card" style="text-align:center;margin:2rem 0;border:2px solid #10b981">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem">🎮</div>
+      <h2 style="color:#065f46;margin-bottom:0.5rem">Play & Learn</h2>
+      <p style="color:#047857;font-size:0.9rem;margin-bottom:1rem">
+        ${hasGames ? `Choose from ${session.games.length} interactive game${session.games.length === 1 ? '' : 's'}.` : 'New games are coming soon.'}
+      </p>
+      <button class="pp-btn pp-btn-primary pp-btn-lg" ${hasGames ? 'onclick="window.__ppOpenGames()"' : 'disabled'} style="background:linear-gradient(135deg,#10b981,#059669)">
+        ${hasGames ? '🎮 Play Games' : '🎮 No Games Available Yet'}
+      </button>
+    </div>
+  `
+
   return `
     <div class="pp-container">
       <div class="pp-dashboard-header">
@@ -294,6 +319,7 @@ export async function renderChapters() {
         <p>${session.student.class_level} • ${session.course?.name || ''}</p>
       </div>
       ${finalSection}
+      ${gamesSection}
       <div class="pp-progress-overview">
         <h2>Your Progress</h2>
         <div class="pp-progress-count">${completed.length} / ${chapters.length}</div>
@@ -323,8 +349,11 @@ window.__ppOpenChapter = function(chapterId) {
 
 window.__ppExit = function() {
   session.student = null
+  session.activitySessionId = null
   session.course = null
   session.chapters = []
+  session.games = []
+  session.currentGame = null
   session.completedChapters = []
   session.badges = []
   session.attempts = []
@@ -334,6 +363,67 @@ window.__ppExit = function() {
   clearStudentId()
   state.student = null
   navigate('landing')
+}
+
+// ============================================================
+// STUDENT GAMES
+// ============================================================
+window.__ppOpenGames = function() {
+  navigate('games')
+}
+
+export async function renderGames() {
+  if (!session.student) { navigate('landing'); return '' }
+
+  session.games = await db.getActiveGames()
+  const gameCards = session.games.map(game => `
+    <div class="pp-card pp-text-center">
+      <div style="font-size:3rem;margin-bottom:0.5rem">${game.icon || '🎮'}</div>
+      <strong>${game.title}</strong>
+      <p style="font-size:0.9rem;color:var(--text-muted)">${game.description || ''}</p>
+      <button class="pp-btn pp-btn-primary" onclick="window.__ppPlayGame('${game.id}')">▶ Play Now</button>
+    </div>
+  `).join('')
+
+  return `
+    <div class="pp-container">
+      <button class="pp-back-btn" onclick="window.__ppNav('chapters')">← Back to Chapters</button>
+      <div class="pp-dashboard-header"><h1>🎮 Play & Learn</h1></div>
+      ${gameCards ? `<div class="pp-chapters-grid">${gameCards}</div>` : '<div class="pp-card pp-text-center"><p>No games available right now.</p></div>'}
+    </div>
+  `
+}
+
+window.__ppPlayGame = async function(gameId) {
+  const game = await db.getGameById(gameId)
+  if (!game || !game.is_active || !game.html_content) {
+    alert('This game is no longer available.')
+    session.games = await db.getActiveGames()
+    navigate('games')
+    return
+  }
+  session.currentGame = game
+  navigate('game-play')
+}
+
+export function renderGamePlay() {
+  const game = session.currentGame
+  if (!session.student || !game) { navigate('games'); return '' }
+  const escapedHTML = game.html_content
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+
+  return `
+    <div style="padding:0;max-width:100%;width:100%;margin:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:0.75rem 1.5rem;background:#fff;border-bottom:1px solid #e5e7eb">
+        <button class="pp-back-btn" style="margin:0" onclick="window.__ppNav('games')">← Back to Games</button>
+        <strong>${game.icon || '🎮'} ${game.title}</strong>
+        <button class="pp-back-btn" style="margin:0" onclick="window.__ppNav('chapters')">Home</button>
+      </div>
+      <iframe title="${game.title}" sandbox="allow-scripts allow-forms allow-popups allow-modals" srcdoc="${escapedHTML}" style="width:100%;height:calc(100vh - 150px);border:0;background:#fff;display:block"></iframe>
+    </div>
+  `
 }
 
 // ============================================================
@@ -626,6 +716,20 @@ async function submitQuiz() {
     attempted_at: new Date().toISOString(),
   })
 
+  await db.recordStudentActivity({
+    session_id: session.activitySessionId,
+    student_name: session.student.name,
+    class_level: session.student.class_level,
+    event_type: 'quiz_attempt',
+    quiz_title: state.currentQuiz?.title || `${ch.title} Quiz`,
+    chapter_title: ch.title,
+    passed,
+    score_percentage: percentage,
+    correct_count: correct,
+    wrong_count: wrong,
+    total_questions: total,
+  })
+
   const result = {
     total_questions: total,
     correct_count: correct,
@@ -746,6 +850,7 @@ export function renderBadge() {
   return `
     <div class="pp-container">
       <div class="pp-card pp-badge-celebration">
+        <img src="/logo.png" alt="Professor Prabh" style="width:88px;height:88px;object-fit:contain;margin-bottom:0.75rem" />
         <div class="pp-badge-medal">🏆</div>
         <div class="pp-badge-name">${badge.name}</div>
         <div class="pp-badge-desc">${badge.description || ''}</div>
@@ -945,6 +1050,19 @@ async function submitFinalQuiz() {
   const percentage = Math.round((correct / total) * 100)
   const passed = percentage >= FINAL_QUIZ_PASS_PCT
 
+  await db.recordStudentActivity({
+    session_id: session.activitySessionId,
+    student_name: session.student.name,
+    class_level: session.student.class_level,
+    event_type: 'quiz_attempt',
+    quiz_title: 'Final Combined Quiz',
+    passed,
+    score_percentage: percentage,
+    correct_count: correct,
+    wrong_count: wrong,
+    total_questions: total,
+  })
+
   const result = {
     total_questions: total,
     correct_count: correct,
@@ -976,6 +1094,16 @@ async function submitFinalQuiz() {
       } catch (e) {
         console.warn('Certificate DB save skipped:', e)
       }
+      await db.recordStudentActivity({
+        session_id: session.activitySessionId,
+        student_name: session.student.name,
+        class_level: session.student.class_level,
+        event_type: 'certificate_awarded',
+        certificate_number: session.certificate.certificate_number,
+        quiz_title: 'Final Combined Quiz',
+        passed: true,
+        score_percentage: percentage,
+      })
     }
   }
 
@@ -1106,6 +1234,7 @@ export async function renderCertificate() {
   const badgesHTML = earnedBadges.map(ch => `
     <div class="golden-badge ${ch.earned ? 'earned' : 'locked'}">
       <div class="golden-badge-inner">
+        <img class="golden-badge-logo" src="/logo.png" alt="Professor Prabh" />
         <div class="golden-badge-icon">${ch.earned ? '🏅' : '🔒'}</div>
         <div class="golden-badge-name">${ch.badgeName}</div>
         <div class="golden-badge-student">${student?.name || 'Student'}</div>
@@ -1200,7 +1329,7 @@ window.__ppViewCertificate = function(certId) {
 // ============================================================
 // BADGE DOWNLOAD
 // ============================================================
-window.downloadBadge = function(badgeName, studentName) {
+window.downloadBadge = async function(badgeName, studentName) {
   console.log('📥 Downloading badge:', badgeName, 'for:', studentName)
 
   const badgeElement = document.createElement('div')
@@ -1231,6 +1360,7 @@ window.downloadBadge = function(badgeName, studentName) {
       justify-content: center;
       text-align: center;
     ">
+      <img src="/logo.png" alt="Professor Prabh" style="width:100px;height:100px;object-fit:contain;border-radius:50%;margin-bottom:0.6rem;border:3px solid #fbbf24" />
       <div style="font-size: 4rem; margin-bottom: 0.5rem;">🏅</div>
       <div style="font-size: 0.7rem; color: #fbbf24; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 0.5rem;">
         ⭐ Certificate of Achievement
@@ -1256,6 +1386,8 @@ window.downloadBadge = function(badgeName, studentName) {
   `
 
   document.body.appendChild(badgeElement)
+  const logo = badgeElement.querySelector('img')
+  try { await logo.decode() } catch (err) { /* Keep generating the badge if the logo cannot load. */ }
 
   setTimeout(() => {
     html2canvas(badgeElement, {
