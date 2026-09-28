@@ -1375,9 +1375,9 @@ window.downloadBadge = async function(badgeName, studentName) {
     position: fixed;
     left: -9999px;
     top: 0;
-    width: 400px;
-    height: 500px;
-    border-radius: 20px;
+    width: 420px;
+    height: 594px;
+    border-radius: 24px;
     padding: 2px;
     background: linear-gradient(135deg, #f5d98e, #fbbf24, #f5d98e, #fbbf24);
     background-size: 300% 300%;
@@ -1388,35 +1388,36 @@ window.downloadBadge = async function(badgeName, studentName) {
   badgeElement.innerHTML = `
     <div style="
       background: linear-gradient(145deg, #1a1a2e, #0f0e17);
-      border-radius: 18px;
-      padding: 2rem 1.5rem;
+      border-radius: 22px;
+      padding: 28px 34px;
       height: 100%;
+      width: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
     ">
-      <img src="/logo.png" alt="Professor Prabh" style="width:100px;height:100px;object-fit:contain;border-radius:50%;margin-bottom:0.6rem;border:3px solid #fbbf24" />
-      <div style="font-size: 4rem; margin-bottom: 0.5rem;">🏅</div>
-      <div style="font-size: 0.7rem; color: #fbbf24; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 0.5rem;">
+      <img src="/logo.png" alt="Professor Prabh" style="width:78px;height:78px;flex:0 0 78px;object-fit:contain;border-radius:50%;margin-bottom:0.55rem;border:3px solid #fbbf24" />
+      <div style="font-size: 3rem; line-height:1; margin-bottom: 0.45rem;">🏅</div>
+      <div style="font-size: 0.68rem; line-height:1.3; color: #fbbf24; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.45rem;">
         ⭐ Certificate of Achievement
       </div>
-      <div style="font-size: 1.8rem; font-weight: 700; color: #fbbf24; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.3rem;">
+      <div style="font-size: 1.35rem; line-height:1.15; max-width:100%; overflow-wrap:anywhere; font-weight: 700; color: #fbbf24; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">
         ${badgeName}
       </div>
-      <div style="font-size: 1rem; color: #94a3b8; margin-bottom: 0.5rem;">Presented to</div>
-      <div style="font-size: 2.2rem; font-weight: 700; background: linear-gradient(135deg, #f5d98e, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 1rem; font-family: 'Georgia', serif;">
+      <div style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 0.35rem;">Presented to</div>
+      <div style="font-size: 1.65rem; line-height:1.1; max-width:100%; overflow-wrap:anywhere; font-weight: 700; background: linear-gradient(135deg, #f5d98e, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.75rem; font-family: 'Georgia', serif;">
         ${studentName}
       </div>
-      <div style="font-size: 0.65rem; color: #64748b; margin-bottom: 1rem; border-top: 1px solid rgba(255,215,0,0.1); padding-top: 1rem; width: 60%;">
+      <div style="font-size: 0.68rem; color: #64748b; margin-bottom: 0.7rem; border-top: 1px solid rgba(255,215,0,0.1); padding-top: 0.65rem; width: 72%;">
         Earned on ${new Date().toLocaleDateString()}
       </div>
-      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
-        <div style="font-size: 0.6rem; color: #64748b;">Professor Prabh</div>
-        <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #fbbf24, transparent);"></div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.1rem;">
+        <div style="font-size: 0.66rem; color: #94a3b8;">Professor Prabh</div>
+        <div style="width: 48px; height: 2px; background: linear-gradient(90deg, #fbbf24, transparent);"></div>
       </div>
-      <div style="font-size: 0.5rem; color: #4a4a4a; margin-top: 0.5rem; letter-spacing: 1px;">
+      <div style="font-size: 0.58rem; color: #64748b; margin-top: 0.35rem; letter-spacing: 1px;">
         🏆 Professor Prabh Academy
       </div>
     </div>
@@ -1433,15 +1434,15 @@ window.downloadBadge = async function(badgeName, studentName) {
       allowTaint: false,
       useCORS: true,
       logging: false,
-      width: 400,
-      height: 500,
+      width: 420,
+      height: 594,
     }).then(canvas => {
       const imgData = canvas.toDataURL('image/png', 1.0)
       const { jsPDF } = window.jspdf
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [105, 130]
+        format: [105, 148]
       })
 
       const pdfWidth = pdf.internal.pageSize.getWidth()
