@@ -176,13 +176,7 @@ export function attachOnboarding() {
       session.finalQuizPassed = false
       session.finalQuizResult = null
 
-      const courses = await db.getActiveCourses()
-      const course = courses.find(c => c.class_level === 'Class 7') || courses[0]
-      if (!course) {
-        throw new Error('No courses available for this class yet.')
-      }
-      session.course = { ...course, name: 'Classes 6-8 Physics' }
-      session.chapters = await db.getChaptersByCourse(course.id)
+      await loadSharedCourseContent()
       session.games = await db.getActiveGames()
 
       console.log('📚 Loaded chapters:', session.chapters)
@@ -213,6 +207,26 @@ export function attachOnboarding() {
   })
 }
 
+async function loadSharedCourseContent() {
+  const courses = await db.getActiveCourses()
+  if (courses.length === 0) throw new Error('No active courses are available yet.')
+
+  const sharedCourses = courses.filter(course => {
+    const classLevel = String(course.class_level || '').trim().toLowerCase()
+    const gradeNumbers = (classLevel.match(/\d+/g) || []).map(Number)
+    return /classes?/.test(classLevel) && gradeNumbers.length > 0 &&
+      gradeNumbers.every(grade => [6, 7, 8].includes(grade))
+  })
+  const coursesToLoad = sharedCourses.length > 0 ? sharedCourses : courses
+  const primaryCourse = coursesToLoad.find(course => course.class_level === 'Class 7') || coursesToLoad[0]
+
+  session.course = { ...primaryCourse, name: 'Classes 6-8 Physics' }
+  const chapterGroups = await Promise.all(coursesToLoad.map(course => db.getChaptersByCourse(course.id)))
+  session.chapters = chapterGroups.flat().sort((first, second) =>
+    (first.sort_order || 0) - (second.sort_order || 0) || first.title.localeCompare(second.title)
+  )
+}
+
 // ============================================================
 // CHAPTERS LIST
 // ============================================================
@@ -222,6 +236,11 @@ export async function renderChapters() {
     return ''
   }
 
+  try {
+    await loadSharedCourseContent()
+  } catch (error) {
+    console.warn('Could not refresh active chapters:', error)
+  }
   session.games = await db.getActiveGames()
 
   const chapters = session.chapters
@@ -329,7 +348,9 @@ export async function renderChapters() {
         </div>
       </div>
       <h2 style="margin-bottom:1rem;color:var(--gray-700)">Choose a Chapter to Quiz</h2>
-      <div class="pp-chapters-grid">${chapterCards}</div>
+      ${chapterCards
+        ? `<div class="pp-chapters-grid">${chapterCards}</div>`
+        : '<div class="pp-card pp-text-center"><p>No active chapters are available for Classes 6-8 right now.</p></div>'}
       <div style="text-align:center;margin-top:2rem">
         <button class="pp-btn pp-btn-ghost" onclick="window.__ppExit()">Exit / Start Over</button>
       </div>
