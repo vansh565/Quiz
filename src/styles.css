@@ -596,6 +596,15 @@ a:hover { color: var(--primary-700); }
   font-size: 1.2rem;
 }
 
+.pp-chapter-badge-tag img {
+  display: block;
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border: 2px solid var(--warning-500);
+  border-radius: 50%;
+}
+
 /* ============================================================
    Video Page
    ============================================================ */
@@ -3718,6 +3727,15 @@ a:hover { color: var(--primary-700); }
 
 .golden-badge-icon {
   font-size: 2.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.golden-badge-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border: 2px solid #fbbf24;
+  border-radius: 50%;
   margin-bottom: 0.2rem;
 }
 
