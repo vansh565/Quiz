@@ -909,7 +909,6 @@ function renderBadgeAwardMarkup(details) {
         <p class="badge-award-description">Your dedication to learning and curiosity<br>have earned you this special recognition!</p>
         <div class="badge-award-course">
           <span>${escapeBadgeText(details.chapterName)}</span>
-          <span>${escapeBadgeText(details.courseName)} · ${escapeBadgeText(details.classLevel)}</span>
         </div>
       </div>
 
