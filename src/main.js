@@ -246,19 +246,29 @@ async function init() {
   // Student auto-login is disabled (no persistence)
 
   supabase.auth.onAuthStateChange((event, session) => {
-    (async () => {
-      if (event === 'SIGNED_OUT' || !session) {
-        state.adminAuth = false
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const { data: profile } = await supabase
-          .from('admin_profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle()
-        state.adminAuth = !!profile
+    if (event === 'SIGNED_OUT' || !session) {
+      state.adminAuth = false
+      fullRender()
+      return
+    }
+
+    if (!['SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) return
+
+    setTimeout(async () => {
+      const { data: profile, error } = await supabase
+        .from('admin_profiles')
+        .select('id')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error('Could not refresh admin profile state:', error.message)
+        return
       }
+
+      state.adminAuth = !!profile
       await fullRender()
-    })()
+    }, 0)
   })
 
   await fullRender()
