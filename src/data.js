@@ -471,7 +471,7 @@ export async function getRecentStudentActivity(limit = 100) {
     return data || []
   } catch (error) {
     console.error('getRecentStudentActivity error:', error.message || error)
-    return []
+    throw error
   }
 }
 
