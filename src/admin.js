@@ -986,19 +986,21 @@ async function renderAdminSettings() {
 
 async function renderAdminCertificateTemplate() {
   const settings = await db.getPlatformSettings()
-  const templateUrl = settings.certificate_template_url || ''
+  const templateUrl = settings.certificate_template_mode === 'image'
+    ? settings.certificate_template_url || ''
+    : ''
   return `
     <h1 class="pp-admin-page-title">Certificate Template</h1>
     <div class="pp-card" style="max-width:760px">
       <p style="color:var(--text-muted);margin-bottom:1rem">
-        Upload a landscape PNG, JPG, or WebP certificate background. The student name is placed below the presentation line, the completed course covers the course placeholder, and the issue date and certificate number are added near the bottom. Remove sample names, course names, and dates from the image first; text already baked into an image cannot be edited.
+        The built-in responsive certificate is used by default. Optionally upload a landscape PNG, JPG, or WebP background; the student's name, actual course, score, date, and certificate number are added automatically. Remove sample text from your image before uploading because text baked into an image cannot be edited.
       </p>
       ${templateUrl ? `
         <div style="margin-bottom:1.25rem">
           <strong style="display:block;margin-bottom:0.5rem">Current template</strong>
           <img src="${escapeActivityText(templateUrl)}" alt="Current certificate template preview" style="display:block;width:100%;max-height:420px;object-fit:contain;background:#f3f4f6;border:1px solid var(--border);border-radius:8px" />
         </div>
-      ` : '<div class="pp-alert info">No template uploaded. The default certificate design will be used.</div>'}
+      ` : '<div class="pp-alert info">The supplied HTML certificate design is active. Upload an image only if you want to override it.</div>'}
       <form id="pp-certificate-template-form">
         <div class="pp-form-group">
           <label class="pp-label" for="pp-certificate-template-file">Certificate background image</label>
@@ -1213,6 +1215,7 @@ function attachAdminContentHandlers() {
         try {
           await db.updatePlatformSetting('certificate_template_path', uploadedPath)
           await db.updatePlatformSetting('certificate_template_url', data.publicUrl)
+          await db.updatePlatformSetting('certificate_template_mode', 'image')
         } catch (error) {
           await supabase.storage.from('certificate-templates').remove([uploadedPath])
           throw error
@@ -1246,6 +1249,7 @@ function attachAdminContentHandlers() {
         }
         await db.updatePlatformSetting('certificate_template_path', '')
         await db.updatePlatformSetting('certificate_template_url', '')
+        await db.updatePlatformSetting('certificate_template_mode', '')
         showToast('Certificate template removed.', 'success')
         loadAdminContent()
       } catch (error) {
