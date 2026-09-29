@@ -875,6 +875,72 @@ export async function renderResult() {
 // ============================================================
 // BADGE CELEBRATION
 // ============================================================
+function escapeBadgeText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character])
+}
+
+function renderBadgeAwardMarkup(details) {
+  return `
+    <div class="badge-award">
+      <div class="badge-award-corner top-left"></div>
+      <div class="badge-award-corner top-right"></div>
+      <div class="badge-award-corner bottom-left"></div>
+      <div class="badge-award-corner bottom-right"></div>
+      <div class="badge-award-inner-border"></div>
+
+      <header class="badge-award-header">
+        <img src="/logo.png" alt="Professor Prabh logo" />
+        <div>
+          <strong>Professor Prabh</strong>
+          <span>LEARN · QUIZ · EARN BADGES · GET Certificate</span>
+        </div>
+      </header>
+
+      <h1 class="badge-award-heading">Badge Award</h1>
+      <div class="badge-award-divider"><span></span><b>★</b><span></span></div>
+
+      <div class="badge-award-content">
+        <p>This badge award is proudly presented to</p>
+        <div class="badge-award-student">${escapeBadgeText(details.studentName)}</div>
+        <p>for successfully earning the</p>
+        <div class="badge-award-title">${escapeBadgeText(details.badgeName)}</div>
+        <p class="badge-award-description">Your dedication to learning and curiosity<br>have earned you this special recognition!</p>
+        <div class="badge-award-course">
+          <span>${escapeBadgeText(details.chapterName)}</span>
+          <span>${escapeBadgeText(details.courseName)} · ${escapeBadgeText(details.classLevel)}</span>
+        </div>
+      </div>
+
+      <svg class="badge-award-sound-wave" viewBox="0 0 120 80" aria-hidden="true">
+        <g fill="none" stroke="#2a6bb5" stroke-width="4" stroke-linecap="round">
+          <path d="M5 40h18l8-24 12 48 12-38 12 29 12-15h14" />
+          <path d="M91 24q20 16 0 32M101 15q30 25 0 50" />
+        </g>
+        <g stroke="#fdd835" stroke-width="4" stroke-linecap="round">
+          <path d="m8 12 8 8M3 35h12M8 66l8-8" />
+        </g>
+      </svg>
+
+      <div class="badge-award-medal">
+        <div class="badge-award-ribbon left"></div>
+        <div class="badge-award-ribbon right"></div>
+        <div class="badge-award-medal-face">
+          <span>${escapeBadgeText(details.badgeIcon || '🏅')}</span>
+          <small>★ ★ ★</small>
+        </div>
+        <div class="badge-award-banner">${escapeBadgeText(details.badgeName)}</div>
+      </div>
+
+      <footer class="badge-award-footer">
+        <div class="badge-award-date"><strong>Date of Achievement</strong><span>${escapeBadgeText(details.awardedDate)}</span></div>
+        <div class="badge-award-quote"><strong>Keep Learning<br>Keep Exploring<br>Keep Earning Badges!</strong><span>Seekho with Professor Prabh</span></div>
+      </footer>
+    </div>
+  `
+}
+
 export function renderBadge() {
   const badge = state.earnedBadge
   const ch = state.currentChapter
@@ -882,21 +948,19 @@ export function renderBadge() {
   if (!badge) { navigate('chapters'); return '' }
 
   const allComplete = session.chapters.length > 0 && session.completedChapters.length === session.chapters.length
+  const badgeDetails = getBadgeAwardDetails(badge.name, session.student?.name, badge.icon)
 
   return `
     <div class="pp-container">
-      <div class="pp-card pp-badge-celebration">
-        <img class="pp-badge-brand-logo" src="/logo.png" alt="Professor Prabh" />
-        <div class="pp-badge-medal">🏆</div>
-        <div class="pp-badge-name">${badge.name}</div>
-        <div class="pp-badge-desc">${badge.description || ''}</div>
+      <div class="badge-award-screen">
+        ${renderBadgeAwardMarkup(badgeDetails)}
         <div class="pp-alert success" style="text-align:center">
           ✅ You scored ${result?.score_percentage}% on the ${ch?.title} quiz!
         </div>
         <div class="pp-alert info" style="text-align:center; background: #fef3c7; border-color: #f59e0b;">
           🎉 Badge earned! Download it now or it will be lost when you leave.
         </div>
-        <div style="margin-top:1rem">
+        <div class="badge-award-actions">
           <button class="pp-btn pp-btn-primary" onclick="window.downloadBadge('${badge.name}', '${session.student?.name || 'Student'}')">
             📥 Download Badge
           </button>
@@ -915,6 +979,24 @@ export function renderBadge() {
       </div>
     </div>
   `
+}
+
+function getBadgeAwardDetails(badgeName, studentName, badgeIcon) {
+  const savedBadge = session.badges.find(badge => badge.badge_name === badgeName)
+  const chapter = session.chapters.find(item => item.id === savedBadge?.chapter_id) ||
+    (state.currentChapter?.title === savedBadge?.chapter_title ? state.currentChapter : null)
+
+  return {
+    badgeName,
+    studentName: studentName || session.student?.name || 'Student',
+    chapterName: savedBadge?.chapter_title || chapter?.title || badgeName,
+    courseName: session.course?.name || 'Physics',
+    classLevel: session.student?.class_level || 'Classes 6-8',
+    badgeIcon: savedBadge?.badge_icon || badgeIcon || '🏅',
+    awardedDate: new Date(savedBadge?.earned_at || Date.now()).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'long', day: 'numeric',
+    }),
+  }
 }
 
 // ============================================================
@@ -1246,7 +1328,9 @@ export async function renderCertificate() {
 
   const student = session.student
   const settings = await db.getPlatformSettings()
-  const certificateTemplateUrl = settings.certificate_template_url || ''
+  const certificateTemplateUrl = settings.certificate_template_mode === 'image'
+    ? settings.certificate_template_url || ''
+    : ''
   const issuedDate = new Date(cert.issued_date).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric'
   })
@@ -1300,32 +1384,68 @@ export async function renderCertificate() {
       </div>
     `
     : `
-      <div class="certificate-bg"></div>
-      <div class="certificate-content">
-        <div class="cert-header">
-          <div class="cert-logo">🧑‍🔬</div>
-          <div class="cert-title">Professor Prabh</div>
-          <div class="cert-subtitle">Certificate of Excellence</div>
-        </div>
-        <div class="cert-body">
-          <div class="cert-presented">This certificate is proudly presented to</div>
-          <div class="cert-student-name">${student?.name || cert.student_name}</div>
-          <div class="cert-program">for successfully completing the<br><strong>${cert.program_name}</strong></div>
-          <div class="cert-achievement">with outstanding performance and dedication<br><span style="font-size:0.8rem">Final Quiz Score: <strong>${finalScore}%</strong></span></div>
-          <div class="golden-badges-section">
-            <div class="golden-badges-title">🏆 Badges Earned (${earnedCount}/5)</div>
-            <div class="golden-badges-grid">${badgesHTML}</div>
+      <div class="completion-certificate">
+        <div class="completion-corner completion-corner-tl"></div>
+        <div class="completion-corner completion-corner-tr"></div>
+        <div class="completion-corner completion-corner-bl"></div>
+        <div class="completion-corner completion-corner-br"></div>
+        <div class="completion-inner-border"></div>
+
+        <header class="completion-header">
+          <svg class="completion-cap" viewBox="0 0 100 100" aria-hidden="true">
+            <path d="M50 15 90 35 50 55 10 35Z" fill="#113a73" />
+            <path d="M25 45v20c0 10 15 20 25 20s25-10 25-20V45L50 60Z" fill="#113a73" />
+            <path d="M87 35v30" stroke="#113a73" stroke-width="4" />
+            <circle cx="87" cy="68" r="5" fill="#fdd835" />
+          </svg>
+          <div class="completion-brand">
+            <strong>Professor Prabh</strong>
+            <span>LEARN · QUIZ · EARN BADGES · GET CERTIFICATE</span>
           </div>
-          <div class="cert-number">Certificate No: ${cert.certificate_number}</div>
+        </header>
+
+        <h1 class="completion-title">Certificate of Completion</h1>
+        <div class="completion-divider"><span></span><b>★</b><span></span></div>
+
+        <div class="completion-copy">
+          <p>This certificate is proudly presented to</p>
+          <div class="completion-student">${escapeCertificateText(student?.name || cert.student_name)}</div>
+          <p class="completion-complete-label">for successfully completing the</p>
+          <div class="completion-course"><strong>${escapeCertificateText(cert.program_name)}</strong></div>
+          <p class="completion-dedication">Your dedication to learning and curiosity<br>have earned you a special badge!</p>
+          <p class="completion-score">Final quiz score: <strong>${finalScore}%</strong></p>
         </div>
-        <div class="cert-footer">
-          <div class="cert-signature">
-            <div class="cert-signature-line"></div>
-            <div class="cert-signature-name">Professor Prabh</div>
-            <div class="cert-signature-title">Seekho with Professor Prabh</div>
+
+        <svg class="completion-sound-wave" viewBox="0 0 150 90" aria-hidden="true">
+          <g fill="none" stroke="#2a6bb5" stroke-width="4" stroke-linecap="round">
+            <path d="M5 45h18l9-25 12 50 13-40 13 30 12-15h16" />
+            <path d="M105 26q24 19 0 38M117 16q38 29 0 58" />
+          </g>
+          <g stroke="#fdd835" stroke-width="4" stroke-linecap="round">
+            <path d="m18 10 8 9M7 31h11M15 67l9-8" />
+          </g>
+        </svg>
+
+        <div class="completion-medal" aria-label="Course completion medal">
+          <div class="completion-ribbon completion-ribbon-left"></div>
+          <div class="completion-ribbon completion-ribbon-right"></div>
+          <div class="completion-medal-face">
+            <span class="completion-medal-icon">★</span>
+            <span class="completion-medal-stars">★ ★ ★</span>
           </div>
-          <div class="cert-date"><div class="cert-date-label">Date of Issue</div><div class="cert-date-value">${issuedDate}</div></div>
+          <div class="completion-medal-banner">COURSE COMPLETE</div>
         </div>
+
+        <footer class="completion-footer">
+          <div class="completion-date">
+            <strong>Date of Completion</strong>
+            <span>${escapeCertificateText(issuedDate)}</span>
+          </div>
+          <div class="completion-quote">
+            <strong>Keep Learning<br>Keep Exploring<br>Keep Earning Badges!</strong>
+            <span>Certificate No. ${escapeCertificateText(cert.certificate_number)}</span>
+          </div>
+        </footer>
       </div>
     `
 
@@ -1333,7 +1453,7 @@ export async function renderCertificate() {
     <div class="pp-container">
       <button class="pp-back-btn" onclick="window.__ppNav('chapters')">← Back to Chapters</button>
       
-      <div class="certificate-wrapper ${certificateTemplateUrl ? 'certificate-template-wrapper' : ''}" id="certificate-container">
+      <div class="certificate-wrapper ${certificateTemplateUrl ? 'certificate-template-wrapper' : 'completion-certificate'}" id="certificate-container">
         ${certificateMarkup}
       </div>
 
@@ -1369,98 +1489,45 @@ window.__ppViewCertificate = function(certId) {
 // BADGE DOWNLOAD
 // ============================================================
 window.downloadBadge = async function(badgeName, studentName) {
-  console.log('📥 Downloading badge:', badgeName, 'for:', studentName)
-
+  const details = getBadgeAwardDetails(badgeName, studentName)
   const badgeElement = document.createElement('div')
-  badgeElement.className = 'badge-download-container'
-  badgeElement.style.cssText = `
-    position: fixed;
-    left: -9999px;
-    top: 0;
-    width: 420px;
-    height: 594px;
-    border-radius: 24px;
-    padding: 2px;
-    background: linear-gradient(135deg, #f5d98e, #fbbf24, #f5d98e, #fbbf24);
-    background-size: 300% 300%;
-    animation: goldenShine 4s ease-in-out infinite;
-    z-index: 9999;
-  `
-
-  badgeElement.innerHTML = `
-    <div style="
-      background: linear-gradient(145deg, #1a1a2e, #0f0e17);
-      border-radius: 22px;
-      padding: 28px 34px;
-      height: 100%;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    ">
-      <img src="/logo.png" alt="Professor Prabh" style="width:78px;height:78px;flex:0 0 78px;object-fit:contain;border-radius:50%;margin-bottom:0.55rem;border:3px solid #fbbf24" />
-      <div style="font-size: 3rem; line-height:1; margin-bottom: 0.45rem;">🏅</div>
-      <div style="font-size: 0.68rem; line-height:1.3; color: #fbbf24; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.45rem;">
-        ⭐ Certificate of Achievement
-      </div>
-      <div style="font-size: 1.35rem; line-height:1.15; max-width:100%; overflow-wrap:anywhere; font-weight: 700; color: #fbbf24; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem;">
-        ${badgeName}
-      </div>
-      <div style="font-size: 0.9rem; color: #94a3b8; margin-bottom: 0.35rem;">Presented to</div>
-      <div style="font-size: 1.65rem; line-height:1.1; max-width:100%; overflow-wrap:anywhere; font-weight: 700; background: linear-gradient(135deg, #f5d98e, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.75rem; font-family: 'Georgia', serif;">
-        ${studentName}
-      </div>
-      <div style="font-size: 0.68rem; color: #64748b; margin-bottom: 0.7rem; border-top: 1px solid rgba(255,215,0,0.1); padding-top: 0.65rem; width: 72%;">
-        Earned on ${new Date().toLocaleDateString()}
-      </div>
-      <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.1rem;">
-        <div style="font-size: 0.66rem; color: #94a3b8;">Professor Prabh</div>
-        <div style="width: 48px; height: 2px; background: linear-gradient(90deg, #fbbf24, transparent);"></div>
-      </div>
-      <div style="font-size: 0.58rem; color: #64748b; margin-top: 0.35rem; letter-spacing: 1px;">
-        Seekho with Professor Prabh
-      </div>
-    </div>
-  `
-
+  badgeElement.className = 'badge-award badge-award-render'
+  badgeElement.style.cssText = 'position:fixed;left:-1100px;top:0;width:1000px;height:700px;z-index:9999;'
+  badgeElement.innerHTML = renderBadgeAwardMarkup(details)
   document.body.appendChild(badgeElement)
-  const logo = badgeElement.querySelector('img')
-  try { await logo.decode() } catch (err) { /* Keep generating the badge if the logo cannot load. */ }
 
-  setTimeout(() => {
-    html2canvas(badgeElement, {
-      scale: 3,
-      backgroundColor: null,
+  try {
+    const logo = badgeElement.querySelector('.badge-award-header img')
+    if (logo) {
+      try { await logo.decode() } catch (error) { /* Continue without the logo if it cannot load. */ }
+    }
+    if (document.fonts?.ready) await document.fonts.ready
+
+    const canvas = await html2canvas(badgeElement, {
+      scale: 2,
+      backgroundColor: '#fffdf5',
       allowTaint: false,
       useCORS: true,
       logging: false,
-      width: 420,
-      height: 594,
-    }).then(canvas => {
-      const imgData = canvas.toDataURL('image/png', 1.0)
-      const { jsPDF } = window.jspdf
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: [105, 148]
-      })
-
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = pdf.internal.pageSize.getHeight()
-
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-      pdf.save(`${badgeName.replace(/\s+/g, '_')}_Badge.pdf`)
-
-      document.body.removeChild(badgeElement)
-      showToast('✅ Badge downloaded successfully!', 'success')
-    }).catch(err => {
-      console.error('Badge download error:', err)
-      document.body.removeChild(badgeElement)
-      alert('Error downloading badge. Please try again.')
+      width: 1000,
+      height: 700,
+      windowWidth: 1000,
+      windowHeight: 700,
     })
-  }, 200)
+    const { jsPDF } = window.jspdf
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const image = canvas.toDataURL('image/png', 1)
+    pdf.addImage(image, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight())
+    const safeBadgeName = details.badgeName.replace(/[^\w-]+/g, '_')
+    const safeStudentName = details.studentName.replace(/[^\w-]+/g, '_')
+    pdf.save(`Badge_${safeBadgeName}_${safeStudentName}.pdf`)
+    showToast('Badge award downloaded!', 'success')
+  } catch (error) {
+    console.error('Badge download error:', error)
+    alert('Error downloading badge. Please try again.')
+  } finally {
+    badgeElement.remove()
+  }
 }
 
 // ============================================================
@@ -1493,8 +1560,9 @@ window.downloadCertificate = async function() {
 
 function generatePDF(element, btn, originalText) {
   try {
-    const width = element.scrollWidth
-    const height = element.scrollHeight
+    const usesBuiltInTemplate = element.classList.contains('completion-certificate')
+    const width = usesBuiltInTemplate ? 1000 : element.scrollWidth
+    const height = usesBuiltInTemplate ? 700 : element.scrollHeight
 
     html2canvas(element, {
       scale: 3,
@@ -1511,6 +1579,13 @@ function generatePDF(element, btn, originalText) {
         if (clone) {
           clone.style.transform = 'none'
           clone.style.opacity = '1'
+          if (clone.classList.contains('completion-certificate')) {
+            clone.style.width = '1000px'
+            clone.style.height = '700px'
+            clone.style.minHeight = '700px'
+            clone.style.maxWidth = 'none'
+            clone.style.aspectRatio = 'auto'
+          }
         }
       }
     }).then(canvas => {
@@ -1542,7 +1617,7 @@ function generatePDF(element, btn, originalText) {
 
       pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight, undefined, 'FAST')
 
-      const studentName = element.querySelector('.cert-student-name')?.textContent || 'Student'
+      const studentName = element.querySelector('.completion-student, .certificate-template-student, .cert-student-name')?.textContent || 'Student'
       const fileName = `Certificate_${studentName.replace(/\s+/g, '_')}.pdf`
 
       pdf.save(fileName)
