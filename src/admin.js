@@ -252,6 +252,7 @@ const NAV_ITEMS = [
   { id: 'activity', label: 'Student Activity', icon: '🕒' },
   { id: 'attempts', label: 'Quiz Attempts', icon: '📋' },
   { id: 'certificates', label: 'Certificates', icon: '📜' },
+  { id: 'certificate-template', label: 'Certificate Template', icon: '🖼️' },
   { id: 'emails', label: 'Email Logs', icon: '📧' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
@@ -314,6 +315,7 @@ async function loadAdminContent() {
       case 'activity': html = await renderAdminStudentActivity(); break
       case 'attempts': html = await renderAdminAttempts(); break
       case 'certificates': html = await renderAdminCertificates(); break
+      case 'certificate-template': html = await renderAdminCertificateTemplate(); break
       case 'emails': html = await renderAdminEmails(); break
       case 'settings': html = await renderAdminSettings(); break
       default: html = await renderAdminDashboard()
@@ -329,7 +331,7 @@ async function loadAdminContent() {
 // ADMIN DASHBOARD
 // ============================================================
 async function renderAdminDashboard() {
-  const [courses, chapters, quizzes, questions, certs, attempts, emails, activity] = await Promise.all([
+  const [courses, chapters, quizzes, questions, certs, attempts, emails, activityResult] = await Promise.all([
     db.getAllCourses().catch(() => []),
     db.getAllChapters().catch(() => []),
     db.getAllQuizzes().catch(() => []),
@@ -337,8 +339,11 @@ async function renderAdminDashboard() {
     db.getAllCertificates().catch(() => []),
     db.getAllAttempts().catch(() => []),
     db.getAllEmailLogs().catch(() => []),
-    db.getRecentStudentActivity(1000).catch(() => []),
+    db.getRecentStudentActivity(1000)
+      .then(activity => ({ activity, error: null }))
+      .catch(error => ({ activity: [], error })),
   ])
+  const { activity, error: activityError } = activityResult
   const studentSessions = groupStudentSessions(activity)
 
   return `
@@ -360,7 +365,7 @@ async function renderAdminDashboard() {
         <h3>Recent Student Activity</h3>
         <button class="pp-btn pp-btn-ghost pp-btn-sm" onclick="window.__ppAdminNav('activity')">View all</button>
       </div>
-      ${renderStudentActivityTable(activity)}
+      ${activityError ? renderStudentActivityError(activityError) : renderStudentActivityTable(activity)}
     </div>
     <div class="pp-card pp-mt-2">
       <h3>Recent Student Sessions</h3>
@@ -375,7 +380,15 @@ async function renderAdminDashboard() {
 }
 
 async function renderAdminStudentActivity() {
-  const activity = await db.getRecentStudentActivity(100)
+  let activity
+  try {
+    activity = await db.getRecentStudentActivity(100)
+  } catch (error) {
+    return `
+      <h1 class="pp-admin-page-title">Student Activity</h1>
+      ${renderStudentActivityError(error)}
+    `
+  }
   return `
     <div class="pp-admin-toolbar">
       <h1 class="pp-admin-page-title" style="margin:0">Student Activity</h1>
@@ -391,6 +404,18 @@ function escapeActivityText(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char])
+}
+
+function renderStudentActivityError(error) {
+  const message = error?.message || String(error)
+  const migrationMissing = /student_activity|schema cache|PGRST202/i.test(message)
+  return `
+    <div class="pp-alert error">
+      ${migrationMissing
+        ? 'Student activity storage is not installed. Run supabase/migrations/20260928170000_student_activity_realtime.sql in the Supabase SQL Editor, then reload this page.'
+        : `Could not load student activity: ${escapeActivityText(message)}`}
+    </div>
+  `
 }
 
 function renderStudentActivityTable(activity) {
@@ -447,7 +472,15 @@ function renderStudentActivityTable(activity) {
 // ============================================================
 let studentSearch = ''
 async function renderAdminStudents() {
-  const activity = await db.getRecentStudentActivity(1000)
+  let activity
+  try {
+    activity = await db.getRecentStudentActivity(1000)
+  } catch (error) {
+    return `
+      <h1 class="pp-admin-page-title">Students</h1>
+      ${renderStudentActivityError(error)}
+    `
+  }
   const sessions = groupStudentSessions(activity).filter(student =>
     !studentSearch || student.name.toLowerCase().includes(studentSearch.toLowerCase())
   )
@@ -951,6 +984,37 @@ async function renderAdminSettings() {
   `
 }
 
+async function renderAdminCertificateTemplate() {
+  const settings = await db.getPlatformSettings()
+  const templateUrl = settings.certificate_template_url || ''
+  return `
+    <h1 class="pp-admin-page-title">Certificate Template</h1>
+    <div class="pp-card" style="max-width:760px">
+      <p style="color:var(--text-muted);margin-bottom:1rem">
+        Upload a landscape PNG, JPG, or WebP certificate background. The student name is placed below the presentation line, the completed course covers the course placeholder, and the issue date and certificate number are added near the bottom. Remove sample names, course names, and dates from the image first; text already baked into an image cannot be edited.
+      </p>
+      ${templateUrl ? `
+        <div style="margin-bottom:1.25rem">
+          <strong style="display:block;margin-bottom:0.5rem">Current template</strong>
+          <img src="${escapeActivityText(templateUrl)}" alt="Current certificate template preview" style="display:block;width:100%;max-height:420px;object-fit:contain;background:#f3f4f6;border:1px solid var(--border);border-radius:8px" />
+        </div>
+      ` : '<div class="pp-alert info">No template uploaded. The default certificate design will be used.</div>'}
+      <form id="pp-certificate-template-form">
+        <div class="pp-form-group">
+          <label class="pp-label" for="pp-certificate-template-file">Certificate background image</label>
+          <input class="pp-input" id="pp-certificate-template-file" type="file" name="template" accept="image/png,image/jpeg,image/webp" required />
+          <div class="pp-form-hint">PNG, JPG, or WebP. Maximum file size: 5 MB.</div>
+        </div>
+        <div id="pp-certificate-template-error" class="pp-error-text pp-hidden"></div>
+        <div class="pp-flex pp-gap-1 pp-flex-wrap">
+          <button class="pp-btn pp-btn-primary" type="submit">Upload Template</button>
+          ${templateUrl ? '<button class="pp-btn pp-btn-secondary" id="pp-remove-certificate-template" type="button">Remove Template</button>' : ''}
+        </div>
+      </form>
+    </div>
+  `
+}
+
 // ============================================================
 // MODAL HELPERS
 // ============================================================
@@ -1115,6 +1179,77 @@ function attachAdminContentHandlers() {
         loadAdminContent()
       } catch (err) {
         showToast('Error: ' + err.message, 'error')
+      }
+    })
+  }
+
+  const certificateTemplateForm = document.getElementById('pp-certificate-template-form')
+  if (certificateTemplateForm) {
+    certificateTemplateForm.addEventListener('submit', async (event) => {
+      event.preventDefault()
+      const file = certificateTemplateForm.elements.template.files[0]
+      const errorElement = document.getElementById('pp-certificate-template-error')
+      const submitButton = certificateTemplateForm.querySelector('button[type="submit"]')
+      errorElement.classList.add('pp-hidden')
+      submitButton.disabled = true
+
+      let uploadedPath = null
+      try {
+        if (!file || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+          throw new Error('Choose a PNG, JPG, or WebP image.')
+        }
+        if (file.size > 5 * 1024 * 1024) throw new Error('The template image must be 5 MB or smaller.')
+
+        const settings = await db.getPlatformSettings()
+        const oldPath = settings.certificate_template_path
+        const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+        uploadedPath = `templates/${crypto.randomUUID()}.${extension}`
+        const { error: uploadError } = await supabase.storage
+          .from('certificate-templates')
+          .upload(uploadedPath, file, { contentType: file.type, cacheControl: '3600' })
+        if (uploadError) throw uploadError
+
+        const { data } = supabase.storage.from('certificate-templates').getPublicUrl(uploadedPath)
+        try {
+          await db.updatePlatformSetting('certificate_template_path', uploadedPath)
+          await db.updatePlatformSetting('certificate_template_url', data.publicUrl)
+        } catch (error) {
+          await supabase.storage.from('certificate-templates').remove([uploadedPath])
+          throw error
+        }
+
+        if (oldPath) await supabase.storage.from('certificate-templates').remove([oldPath])
+        showToast('Certificate template saved!', 'success')
+        loadAdminContent()
+      } catch (error) {
+        const message = error.message || 'Could not upload certificate template.'
+        errorElement.textContent = /bucket not found/i.test(message)
+          ? 'Certificate storage is not installed. Run supabase/migrations/20260929110000_certificate_templates.sql in the Supabase SQL Editor, then reload this page.'
+          : message
+        errorElement.classList.remove('pp-hidden')
+        submitButton.disabled = false
+      }
+    })
+  }
+
+  const removeCertificateTemplateButton = document.getElementById('pp-remove-certificate-template')
+  if (removeCertificateTemplateButton) {
+    removeCertificateTemplateButton.addEventListener('click', async () => {
+      if (!confirm('Remove the certificate template and return to the default design?')) return
+      try {
+        const settings = await db.getPlatformSettings()
+        if (settings.certificate_template_path) {
+          const { error } = await supabase.storage
+            .from('certificate-templates')
+            .remove([settings.certificate_template_path])
+          if (error) throw error
+        }
+        await db.updatePlatformSetting('certificate_template_path', '')
+        await db.updatePlatformSetting('certificate_template_url', '')
+        showToast('Certificate template removed.', 'success')
+        loadAdminContent()
+      } catch (error) {
+        showToast('Error: ' + error.message, 'error')
       }
     })
   }
