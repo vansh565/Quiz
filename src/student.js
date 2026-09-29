@@ -1245,6 +1245,8 @@ export async function renderCertificate() {
   }
 
   const student = session.student
+  const settings = await db.getPlatformSettings()
+  const certificateTemplateUrl = settings.certificate_template_url || ''
   const issuedDate = new Date(cert.issued_date).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric'
   })
@@ -1282,57 +1284,57 @@ export async function renderCertificate() {
   `).join('')
 
   const finalScore = session.finalQuizResult?.score_percentage || 0
+  const escapeCertificateText = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character])
+
+  const certificateMarkup = certificateTemplateUrl
+    ? `
+      <img class="certificate-template-image" src="${escapeCertificateText(certificateTemplateUrl)}" alt="" crossorigin="anonymous" />
+      <div class="certificate-template-fields">
+        <div class="certificate-template-student">${escapeCertificateText(student?.name || cert.student_name)}</div>
+        <div class="certificate-template-program">${escapeCertificateText(cert.program_name)}</div>
+        <div class="certificate-template-score">Final quiz score: ${finalScore}%</div>
+        <div class="certificate-template-date">${escapeCertificateText(issuedDate)}</div>
+        <div class="certificate-template-number">Certificate No. ${escapeCertificateText(cert.certificate_number)}</div>
+      </div>
+    `
+    : `
+      <div class="certificate-bg"></div>
+      <div class="certificate-content">
+        <div class="cert-header">
+          <div class="cert-logo">🧑‍🔬</div>
+          <div class="cert-title">Professor Prabh</div>
+          <div class="cert-subtitle">Certificate of Excellence</div>
+        </div>
+        <div class="cert-body">
+          <div class="cert-presented">This certificate is proudly presented to</div>
+          <div class="cert-student-name">${student?.name || cert.student_name}</div>
+          <div class="cert-program">for successfully completing the<br><strong>${cert.program_name}</strong></div>
+          <div class="cert-achievement">with outstanding performance and dedication<br><span style="font-size:0.8rem">Final Quiz Score: <strong>${finalScore}%</strong></span></div>
+          <div class="golden-badges-section">
+            <div class="golden-badges-title">🏆 Badges Earned (${earnedCount}/5)</div>
+            <div class="golden-badges-grid">${badgesHTML}</div>
+          </div>
+          <div class="cert-number">Certificate No: ${cert.certificate_number}</div>
+        </div>
+        <div class="cert-footer">
+          <div class="cert-signature">
+            <div class="cert-signature-line"></div>
+            <div class="cert-signature-name">Professor Prabh</div>
+            <div class="cert-signature-title">Seekho with Professor Prabh</div>
+          </div>
+          <div class="cert-date"><div class="cert-date-label">Date of Issue</div><div class="cert-date-value">${issuedDate}</div></div>
+        </div>
+      </div>
+    `
 
   return `
     <div class="pp-container">
       <button class="pp-back-btn" onclick="window.__ppNav('chapters')">← Back to Chapters</button>
       
-      <div class="certificate-wrapper" id="certificate-container">
-        <div class="certificate-bg"></div>
-        
-        <div class="certificate-content">
-          <div class="cert-header">
-            <div class="cert-logo">🧑‍🔬</div>
-            <div class="cert-title">Professor Prabh</div>
-            <div class="cert-subtitle">Certificate of Excellence</div>
-          </div>
-
-          <div class="cert-body">
-            <div class="cert-presented">This certificate is proudly presented to</div>
-            <div class="cert-student-name">${student?.name || cert.student_name}</div>
-            
-            <div class="cert-program">
-              for successfully completing the<br>
-              <strong>${cert.program_name}</strong>
-            </div>
-
-            <div class="cert-achievement">
-              with outstanding performance and dedication<br>
-              <span style="font-size:0.8rem">Final Quiz Score: <strong>${finalScore}%</strong></span>
-            </div>
-
-            <div class="golden-badges-section">
-              <div class="golden-badges-title">🏆 Badges Earned (${earnedCount}/5)</div>
-              <div class="golden-badges-grid">
-                ${badgesHTML}
-              </div>
-            </div>
-
-            <div class="cert-number">Certificate No: ${cert.certificate_number}</div>
-          </div>
-
-          <div class="cert-footer">
-            <div class="cert-signature">
-              <div class="cert-signature-line"></div>
-              <div class="cert-signature-name">Professor Prabh</div>
-              <div class="cert-signature-title">Founder, Professor Prabh Academy</div>
-            </div>
-            <div class="cert-date">
-              <div class="cert-date-label">Date of Issue</div>
-              <div class="cert-date-value">${issuedDate}</div>
-            </div>
-          </div>
-        </div>
+      <div class="certificate-wrapper ${certificateTemplateUrl ? 'certificate-template-wrapper' : ''}" id="certificate-container">
+        ${certificateMarkup}
       </div>
 
       <div style="text-align:center;margin-top:1.5rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
@@ -1418,7 +1420,7 @@ window.downloadBadge = async function(badgeName, studentName) {
         <div style="width: 48px; height: 2px; background: linear-gradient(90deg, #fbbf24, transparent);"></div>
       </div>
       <div style="font-size: 0.58rem; color: #64748b; margin-top: 0.35rem; letter-spacing: 1px;">
-        🏆 Professor Prabh Academy
+        Seekho with Professor Prabh
       </div>
     </div>
   `
@@ -1464,7 +1466,7 @@ window.downloadBadge = async function(badgeName, studentName) {
 // ============================================================
 // DOWNLOAD CERTIFICATE
 // ============================================================
-window.downloadCertificate = function() {
+window.downloadCertificate = async function() {
   const certElement = document.getElementById('certificate-container')
   if (!certElement) {
     alert('Certificate element not found. Please try again.')
@@ -1477,6 +1479,11 @@ window.downloadCertificate = function() {
     originalText = btn.textContent
     btn.textContent = '⏳ Generating PDF...'
     btn.disabled = true
+  }
+
+  const templateImage = certElement.querySelector('.certificate-template-image')
+  if (templateImage) {
+    try { await templateImage.decode() } catch (error) { /* Generate the PDF even if the image cannot be decoded. */ }
   }
 
   setTimeout(() => {
