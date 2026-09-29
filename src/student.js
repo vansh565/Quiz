@@ -893,8 +893,8 @@ function renderBadgeAwardMarkup(details) {
       <header class="badge-award-header">
         <img src="/logo.png" alt="Professor Prabh logo" />
         <div>
-          <strong>Professor Prabh</strong>
-          <span>LEARN · QUIZ · EARN BADGES · GET Certificate</span>
+          <strong>Seekho with Professor Prabh</strong>
+          <span>LEARN · QUIZ · EARN BADGES · GET CERTIFICATE</span>
         </div>
       </header>
 
@@ -1357,7 +1357,7 @@ export async function renderCertificate() {
   const badgesHTML = earnedBadges.map(ch => `
     <div class="golden-badge ${ch.earned ? 'earned' : 'locked'}">
       <div class="golden-badge-inner">
-        <img class="golden-badge-logo" src="/logo.png" alt="Professor Prabh" />
+        <img class="golden-badge-logo" src="/logo.png" alt="Seekho with Professor Prabh" />
         <div class="golden-badge-icon">${ch.earned ? '🏅' : '🔒'}</div>
         <div class="golden-badge-name">${ch.badgeName}</div>
         <div class="golden-badge-student">${student?.name || 'Student'}</div>
